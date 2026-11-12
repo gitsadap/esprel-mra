@@ -1,0 +1,80 @@
+# ESPReL MRA v2 — ระบบตรวจประเมินความปลอดภัยห้องปฏิบัติการ มหาวิทยาลัยนเรศวร
+
+Web application (Python/Flask) · ฐานข้อมูล **Supabase (Postgres + Storage)** · deploy บน **Vercel** · CI/CD ผ่าน **Git (GitHub Actions)** · เข้าสู่ระบบด้วย **LDAP มหาวิทยาลัย**
+
+## ขั้นตอนการทำงาน
+
+```
+ห้องปฏิบัติการลงทะเบียน + สมัคร → หัวหน้าผู้ตรวจอนุมัติ → ระบบเสนอทีมผู้ตรวจอัตโนมัติ → สร้างการตรวจ
+→ ตรวจรอบ 1 (ให้คะแนน, NC/OBS, ถ่ายรูปหลักฐาน) → ประชุมปิด → ออก Report 1 (PDF/Word)
+→ ห้องปฏิบัติการเห็นผลทุกข้อ + ตอบ CAPA ทุกข้อ NC/OBS พร้อมหลักฐาน → กด “ส่ง CAPA”
+→ หัวหน้าผู้ตรวจเริ่มรอบ 2 (ตรวจเฉพาะข้อ NC/OBS, ข้ออื่นล็อกคะแนนรอบ 1) → ออก Report 2
+```
+
+| บทบาท | ทำอะไรได้ |
+|---|---|
+| ผู้ดูแลระบบ (admin) | ทุกอย่าง + จัดการผู้ใช้/ตั้งค่า |
+| หัวหน้าผู้ตรวจ (lead) | อนุมัติใบสมัคร, จัดทีม, สร้างรายงาน, เริ่มรอบ 2, ส่ง CAPA กลับ, เปิดแก้ไขรอบ |
+| ผู้ตรวจ (assessor) | ให้คะแนน, บันทึก NC/OBS/ข้อเสนอแนะ, แนบรูป, สรุปประชุมปิด |
+| ห้องปฏิบัติการ (lab) | ลงทะเบียนห้อง/สมัคร, ดูผลทุกข้อ (หลังออก Report 1), ตอบ CAPA + แนบหลักฐาน, ดาวน์โหลดรายงาน |
+
+ผู้ใช้ LDAP ที่ยังไม่อยู่ในรายชื่อ จะถูกสร้างเป็นบทบาท “ห้องปฏิบัติการ” อัตโนมัติเมื่อเข้าสู่ระบบครั้งแรก
+ผู้ตรวจ/หัวหน้าผู้ตรวจ ให้ admin เพิ่มชื่อผู้ใช้ LDAP ไว้ล่วงหน้าที่เมนู “ผู้ใช้”
+
+## 1) ตั้งค่า Supabase
+1. สร้าง Project ใหม่ (Region: Singapore)
+2. **SQL Editor** → วางไฟล์ `supabase/migrations/0001_init.sql` แล้ว Run (สร้างตาราง, เปิด RLS ปิดการเข้าถึงผ่าน API, สร้าง bucket `esprel` แบบ private)
+3. คัดลอกค่า
+   - Project Settings → Database → Connection string → **Transaction pooler (port 6543)** → `DATABASE_URL`
+   - Project Settings → API → Project URL → `SUPABASE_URL`, `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (ห้ามเปิดเผย)
+
+## 2) Git + Vercel (CI/CD)
+1. สร้าง repository บน GitHub แล้ว push โค้ดนี้ (`git remote add origin … && git push -u origin main`)
+2. Vercel → **Add New Project** → Import repo นี้ (Framework: Other) — `vercel.json` ตั้งค่าไว้แล้ว
+3. Vercel → Settings → **Environment Variables** ใส่ค่าตาม `.env.example`
+   (`SECRET_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `LDAP_*`, `ADMIN_INITIAL_PASSWORD`)
+4. ทุกครั้งที่ push → GitHub Actions รันทดสอบ (SQLite + Postgres) และ Vercel สร้าง Preview; merge เข้า `main` → Production
+5. ตั้ง Branch protection ให้ `main` ต้องผ่าน CI ก่อน merge
+6. เปิด `https://<โดเมน>/healthz` ควรได้ `{"db":"postgres","storage":"supabase","ldap":true,...}`
+7. เข้าสู่ระบบด้วย `admin` / `ADMIN_INITIAL_PASSWORD` → เพิ่มผู้ตรวจ (ชื่อผู้ใช้ LDAP) → ตั้งค่า `ALLOW_LOCAL_LOGIN=0` หลังมีผู้ดูแลที่เป็น LDAP แล้ว
+
+## 3) LDAP มหาวิทยาลัย — ต้องประสานกองเทคโนโลยีสารสนเทศ
+- ขอค่า: URL (แนะนำ `ldaps://…:636`), Base DN, รูปแบบ DN ของผู้ใช้ หรือบัญชีบริการสำหรับค้นหา, ชื่อ attribute ชื่อ/อีเมล/หน่วยงาน
+- **สำคัญ:** แอปบน Vercel ทำงานบนคลาวด์ ต้องเชื่อมต่อ LDAP ผ่านอินเทอร์เน็ตได้
+  ถ้า LDAP เปิดเฉพาะเครือข่ายภายใน มน. จะเข้าสู่ระบบไม่ได้ ทางเลือก:
+  (ก) ให้ IT เปิด LDAPS สู่ภายนอกพร้อมจำกัดการเข้าถึง (Vercel ไม่มี IP คงที่ในแผนทั่วไป),
+  (ข) ทำ LDAP/auth proxy เล็ก ๆ บนเซิร์ฟเวอร์ มน. ที่เข้าถึงได้ด้วย HTTPS,
+  (ค) ติดตั้งแอปบนเซิร์ฟเวอร์ภายใน มน. แทน Vercel (โค้ดเดิมใช้ได้ทันที — `python app.py` หรือ Docker)
+
+## 4) รันในเครื่อง (พัฒนา/ทดสอบ)
+```
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+python app.py            # ไม่มี DATABASE_URL → ใช้ SQLite ใน instance/  · ไม่มี LDAP_URL → บัญชีทดสอบ
+pytest -q                # ทดสอบทั้งขั้นตอน
+python scripts/seed_demo.py "ไฟล์ Excel แบบประเมิน.xlsx"   # ข้อมูลตัวอย่าง (เฉพาะฐานข้อมูลทดสอบ)
+```
+บัญชีทดสอบ (เฉพาะ SQLite): admin/admin1234 · lead/lead1234 · auditor1/audit1234 · labuser/lab1234
+
+## รายงาน
+- **PDF**: ปุ่ม “Report (PDF)” เปิดรายงาน A4 → “ดาวน์โหลด PDF / พิมพ์” → เลือก “บันทึกเป็น PDF” (ใช้ได้ทั้ง iPad/มือถือ/คอมพิวเตอร์)
+- **Word (.docx)**: สร้างพร้อมกันเมื่อกด “สร้าง Report” สำหรับแก้ไขต่อ (เก็บใน Supabase Storage)
+- ข้อ 2 คะแนนมีเครื่องหมาย `*` ทุกข้อ (ตามคู่มือการประเมินฯ)
+
+## ความปลอดภัยและข้อมูล
+- ข้อมูลใช้ภายใน มน. ไม่มีการส่งออกไปยังระบบภายนอก
+- ไฟล์รูปหลักฐานอยู่ใน bucket แบบ private — ดาวน์โหลดผ่านแอปซึ่งตรวจสิทธิ์ก่อน (ห้องปฏิบัติการเห็นเฉพาะห้องของตน)
+- ทุกการเปลี่ยนคะแนน/ข้อค้นพบ/สถานะถูกบันทึกในประวัติการแก้ไข (audit trail)
+- ป้องกัน CSRF ทุกฟอร์ม/คำขอ, cookie แบบ HttpOnly/Secure
+- ควรกำหนดนโยบายระยะเวลาเก็บรูปและหลีกเลี่ยงการถ่ายใบหน้าบุคคล (PDPA)
+
+## โครงสร้าง
+```
+app.py          เส้นทางเว็บ/สิทธิ์/ขั้นตอน      db.py        ฐานข้อมูล (Postgres/SQLite) + schema
+auth_ldap.py    LDAP                           storage.py   Supabase Storage / ไฟล์ในเครื่อง
+planner.py      จัดทีมผู้ตรวจอัตโนมัติ          reports.py   ข้อมูลรายงาน, เรดาร์, Word, Excel
+scoring.py      คิดคะแนนตาม Excel              importer.py  นำเข้า Excel แบบประเมินเดิม
+api/index.py    entry สำหรับ Vercel             supabase/migrations/  SQL สร้างตาราง
+templates/ static/   หน้าจอ (มือถือ/iPad/คอมพิวเตอร์) และแม่แบบรายงาน PDF
+tests/          pytest ครบขั้นตอน + LDAP mock   .github/workflows/ci.yml  CI
+```

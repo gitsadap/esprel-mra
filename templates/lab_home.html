@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}ห้องปฏิบัติการของฉัน{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">ESPReL MRA · สำหรับห้องปฏิบัติการ</div><h1>ห้องปฏิบัติการของฉัน</h1>
+    <div class="muted">ดูผลการตรวจประเมิน ตอบแผนการแก้ไข (CAPA) และดาวน์โหลดรายงาน</div></div>
+  <a class="btn brand" href="{{ url_for('lab_register') }}">+ ลงทะเบียนห้องปฏิบัติการ</a>
+</div>
+
+{% if not items %}
+<div class="card empty">
+  <div style="font-size:2.4rem">🧪</div>
+  <h2>ยังไม่มีห้องปฏิบัติการในบัญชีของคุณ</h2>
+  <p>ลงทะเบียนห้องปฏิบัติการและสมัครเข้ารับการตรวจประเมิน ESPReL ประจำปี {{ this_year }}<br>
+    หากห้องของคุณเคยรับการตรวจแล้ว โปรดแจ้งหัวหน้าผู้ตรวจให้ผูกบัญชีของคุณกับห้อง</p>
+  <a class="btn brand" href="{{ url_for('lab_register') }}">+ ลงทะเบียนห้องปฏิบัติการ</a>
+</div>
+{% endif %}
+
+{% for it in items %}{% set l = it.lab %}
+<div class="card" style="margin-bottom:16px">
+  <div class="lab-hero">
+    <div class="icon">🧪</div>
+    <div style="flex:1;min-width:0">
+      <h2 style="margin:0">{{ l.name }}</h2>
+      <div class="muted" style="font-size:.88rem">ESPReL no. {{ l.espre_no or '—' }} · {{ l.faculty or '' }}{% if l.location %} · {{ l.location }}{% endif %}</div>
+    </div>
+    {% if l.status == 'pending' %}<span class="badge amber">รอผู้ดูแลอนุมัติ</span>{% endif %}
+    <a class="btn sm" href="{{ url_for('lab_register', lab_id=l.id) }}">✎ แก้ไขข้อมูล / สมัครปีใหม่</a>
+  </div>
+
+  {% if it.apps %}
+  <div class="row" style="margin-top:12px;gap:6px">
+    <span class="muted" style="font-size:.85rem">ใบสมัครเข้ารับการตรวจ:</span>
+    {% for ap in it.apps %}<span class="badge {{ APP_STATUS_TH[ap.status][1] }}">ปี {{ ap.year_be }} · {{ APP_STATUS_TH[ap.status][0] }}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+  {% for x in it.audits %}{% set a = x.a %}
+  <div class="sep"></div>
+  <div class="row" style="justify-content:space-between;align-items:flex-start">
+    <div>
+      <h3 style="margin-bottom:2px">การตรวจประเมินปี {{ a.year_be }}</h3>
+      <span class="badge {{ STATUS_TH[a.status][1] }}">{{ STATUS_TH[a.status][0] }}</span>
+      {% if a.r1_date %}<span class="muted" style="font-size:.85rem"> · ตรวจครั้งที่ 1 {{ thai_date(a.r1_date) }}</span>{% endif %}
+    </div>
+    <div class="row">
+      {% if a.status == 'r1' %}<span class="muted">อยู่ระหว่างการตรวจประเมิน — ผลจะแสดงเมื่อออก Report 1</span>
+      {% else %}
+      <a class="btn {{ 'brand' if a.status == 'r1_reported' else 'primary' }}" href="{{ url_for('lab_audit', audit_id=a.id) }}">
+        {{ '✍ ตอบ CAPA (' ~ x.need ~ ' ข้อ)' if a.status == 'r1_reported' else '👁 ดูผลการตรวจ' }}</a>
+      <a class="btn" href="{{ url_for('report_view', audit_id=a.id, rnd=1) }}">📄 Report 1</a>
+      {% if a.status == 'r2_reported' %}<a class="btn" href="{{ url_for('report_view', audit_id=a.id, rnd=2) }}">📄 Report 2</a>{% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% if a.status != 'r1' %}
+  <div class="grid g4" style="margin-top:12px">
+    <div class="card flat kpi"><div class="k-label">คะแนนครั้งที่ 1</div><div class="k-val tnum lv-{{ level_of(x.r1.total.pct) }}">{{ x.r1.total.pct }}%</div></div>
+    <div class="card flat kpi"><div class="k-label">คะแนนครั้งที่ 2</div><div class="k-val tnum">{{ (x.r2.total.pct ~ '%') if a.status == 'r2_reported' else '–' }}</div></div>
+    <div class="card flat kpi"><div class="k-label">NC / OBS ที่ต้องแก้ไข</div><div class="k-val tnum" style="color:var(--nc)">{{ x.need }}</div></div>
+    <div class="card flat kpi"><div class="k-label">กำหนดส่ง CAPA</div><div class="k-val" style="font-size:1.1rem;margin-top:8px">{{ thai_date(a.deadline) if a.deadline else '—' }}</div></div>
+  </div>
+  {% if a.status == 'r1_reported' and a.capa_return_note %}
+  <div class="locked-note" style="margin-top:10px">คณะผู้ตรวจส่ง CAPA กลับให้แก้ไข: {{ a.capa_return_note }}</div>
+  {% endif %}
+  {% endif %}
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}บัญชีของฉัน{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>บัญชีของฉัน</h1><div class="muted">{{ g.user.full_name }} · {{ g.user.username }} · {{ ROLE_TH[g.user.role] }}{% if g.user.faculty %} · {{ g.user.faculty }}{% endif %}</div></div></div>
+{% if g.user.auth_source == 'ldap' and not g.user.password_hash %}
+<div class="card" style="max-width:520px">บัญชีนี้เข้าสู่ระบบด้วย LDAP ของมหาวิทยาลัย — เปลี่ยนรหัสผ่านได้ที่ระบบบัญชีผู้ใช้ของมหาวิทยาลัย</div>
+{% else %}
+<form method="post" class="card" style="max-width:460px">
+  <h3>เปลี่ยนรหัสผ่าน (บัญชีภายในระบบ)</h3>
+  <div class="field"><label>รหัสผ่านเดิม</label><input type="password" name="old" required></div>
+  <div class="field"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</label><input type="password" name="new" required minlength="8"></div>
+  <button class="btn primary">บันทึก</button>
+</form>
+{% endif %}
+{% endblock %}

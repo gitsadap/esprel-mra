@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}ลงทะเบียนห้องปฏิบัติการ{% endblock %}
+{% block content %}
+{% set L = lab or {} %}
+<div class="page-head">
+  <div><div class="crumb"><a href="{{ url_for('lab_home', **({'as':'lab'} if is_staff() else {})) }}">ห้องปฏิบัติการของฉัน</a></div>
+    <h1>{{ 'แก้ไขข้อมูลห้องปฏิบัติการ' if lab and lab.id else 'ลงทะเบียนห้องปฏิบัติการ' }}</h1>
+    <div class="muted">ข้อมูลนี้ใช้ในรายงานผลการตรวจประเมินและการจัดทีมผู้ตรวจ (ผู้ตรวจจะไม่ตรวจห้องในคณะเดียวกับตน)</div></div>
+</div>
+<form method="post" class="grid g2" style="align-items:start">
+  {% if lab and lab.id %}<input type="hidden" name="lab_id" value="{{ lab.id }}">{% endif %}
+  <div class="card">
+    <h3>ข้อมูลห้องปฏิบัติการ</h3>
+    <div class="field"><label>ชื่อห้องปฏิบัติการ *</label><input type="text" name="name" required value="{{ L.name or '' }}" placeholder="เช่น ห้องปฏิบัติการกลาง AG 2312"></div>
+    <div class="field"><label>เลขทะเบียนห้องปฏิบัติการ (ESPReL no.)</label><input type="text" name="espre_no" value="{{ L.espre_no or '' }}" placeholder="เช่น 2-0100-0163-0"></div>
+    <div class="field"><label>คณะ / หน่วยงาน *</label><input type="text" name="faculty" required value="{{ L.faculty or g.user.faculty or '' }}" list="facs" placeholder="เช่น คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม">
+      <datalist id="facs">{% for f in ['คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม','คณะวิทยาศาสตร์','คณะวิศวกรรมศาสตร์','คณะแพทยศาสตร์','คณะเภสัชศาสตร์','คณะสหเวชศาสตร์','คณะทันตแพทยศาสตร์','คณะวิทยาศาสตร์การแพทย์','คณะพยาบาลศาสตร์','คณะสาธารณสุขศาสตร์','คณะสถาปัตยกรรมศาสตร์ ศิลปะและการออกแบบ','วิทยาลัยพลังงานทดแทนและสมาร์ตกริดเทคโนโลยี'] %}<option value="{{ f }}">{% endfor %}</datalist></div>
+    <div class="field"><label>สังกัด (ภาควิชา/ศูนย์ ถ้ามี)</label><input type="text" name="affiliation" value="{{ L.affiliation or '' }}"></div>
+    <div class="field"><label>อาคาร / ห้อง</label><input type="text" name="location" value="{{ L.location or '' }}" placeholder="เช่น อาคารเกษตรศาสตร์ ห้อง 2312"></div>
+  </div>
+  <div class="card">
+    <h3>ผู้รับผิดชอบ</h3>
+    <div class="field"><label>หัวหน้าห้องปฏิบัติการ</label><input type="text" name="head_name" value="{{ L.head_name or g.user.full_name }}"></div>
+    <div class="grid g2" style="gap:10px">
+      <div class="field"><label>โทรศัพท์</label><input type="text" name="phone" value="{{ L.phone or '' }}" inputmode="tel"></div>
+      <div class="field"><label>อีเมล</label><input type="text" name="email" value="{{ L.email or g.user.email or '' }}" inputmode="email"></div>
+    </div>
+    <div class="field"><label>ผู้ประสานงาน (ถ้าต่างจากหัวหน้าห้อง)</label><input type="text" name="contact" value="{{ L.contact or '' }}"></div>
+    <div class="sep"></div>
+    <h3>สมัครเข้ารับการตรวจประเมิน</h3>
+    <label class="row" style="gap:8px;font-weight:500;color:var(--ink)"><input type="checkbox" name="apply" value="1" checked style="width:22px;height:22px"> สมัครเข้ารับการตรวจประเมิน ESPReL ปี</label>
+    <div class="grid g2" style="gap:10px;margin-top:8px">
+      <div class="field"><label>ปี (พ.ศ.)</label><input type="number" name="year_be" value="{{ this_year }}"></div>
+      <div class="field"><label>หมายเหตุถึงคณะผู้ตรวจ</label><input type="text" name="note" placeholder="เช่น ช่วงเวลาที่สะดวก"></div>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:6px">
+      <button class="btn brand" type="submit">บันทึก{{ ' และส่งใบสมัคร' }}</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

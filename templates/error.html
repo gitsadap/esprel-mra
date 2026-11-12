@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block content %}<div class="card empty"><h2>{{ msg }}</h2>
+{% if detail %}<pre style="text-align:left;white-space:pre-wrap;background:#f6f7fb;padding:12px;border-radius:10px;font-size:.85rem">{{ detail }}</pre>
+<p class="muted">รายละเอียดทั้งหมดถูกบันทึกไว้ที่ instance/error.log</p>{% endif %}
+<a class="btn" href="{{ url_for('dashboard') }}">กลับหน้าหลัก</a></div>{% endblock %}

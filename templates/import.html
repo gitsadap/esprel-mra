@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}นำเข้า Excel{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a></div><h1>นำเข้าผลการตรวจจากไฟล์ Excel</h1></div></div>
+<div class="grid g2" style="align-items:start">
+<form method="post" enctype="multipart/form-data" class="card">
+  <div class="field"><label>ไฟล์แบบประเมิน ESPReL (.xlsx) รูปแบบเดียวกับไฟล์ต้นแบบ</label>
+    <input type="file" name="file" accept=".xlsx,.xlsm" required style="padding:10px;border:1px dashed var(--line-2);border-radius:10px;background:var(--surface-2)"></div>
+  <div class="field"><label>ข้อมูลที่ต้องการนำเข้า</label>
+    <select name="rounds">
+      <option value="1">เฉพาะผลการตรวจครั้งที่ 1 (เพื่อออก Report 1 / ตรวจรอบ 2 ในระบบ)</option>
+      <option value="2">ผลการตรวจครั้งที่ 1 และ 2</option>
+    </select></div>
+  <button class="btn primary" type="submit">⇪ นำเข้า</button>
+</form>
+<div class="card">
+  <h3>ระบบอ่านอะไรจากไฟล์</h3>
+  <ul style="line-height:1.8;padding-left:18px;margin:0">
+    <li>ชีท <b>สรุปคะแนน</b>: ชื่อห้องปฏิบัติการ, ESPReL no., สังกัด, วันที่ตรวจครั้งที่ 1/2</li>
+    <li>ชีท <b>คะแนนองค์ 1 – 7</b>: คะแนนรายข้อ (รวม NA) และข้อเสนอแนะครั้งที่ 1/2</li>
+    <li>ข้อเสนอแนะจะถูกจัดประเภทอัตโนมัติ: ข้อที่ไม่ได้คะแนนเต็ม = <span class="tag NC">NC</span>, ข้อความที่มีคำว่า “เสนอแนะ/แนะนำ/ควร” = <span class="tag SUG">แนะนำ</span>, อื่น ๆ = <span class="tag OBS">OBS</span> — ตรวจสอบ/แก้ไขได้ภายหลัง</li>
+  </ul>
+</div>
+</div>
+{% endblock %}

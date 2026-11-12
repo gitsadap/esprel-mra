@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14213d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>{% block title %}ESPReL MRA{% endblock %} · ESPReL MRA NU</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=4">
+{% block head %}{% endblock %}
+</head>
+<body class="{% block bodyclass %}{% endblock %}">
+{% block topbar %}
+<header class="topbar">
+  <a class="brand" href="{{ url_for('home') if g.user else url_for('login') }}">
+    <span class="mark">ES</span>
+    <span>ESPReL MRA<span class="sub">ระบบตรวจประเมินความปลอดภัยห้องปฏิบัติการ · มน.</span></span>
+  </a>
+  {% if g.user %}
+  <button class="menu-btn" onclick="document.getElementById('nav').classList.toggle('open')" aria-label="เมนู">☰</button>
+  <nav class="nav" id="nav">
+    {% if g.user.role == 'lab' %}
+    <a href="{{ url_for('lab_home') }}" class="{{ 'on' if request.endpoint in ('lab_home','lab_audit') }}">ห้องปฏิบัติการของฉัน</a>
+    <a href="{{ url_for('lab_register') }}" class="{{ 'on' if request.endpoint=='lab_register' }}">+ ลงทะเบียนห้อง</a>
+    {% else %}
+    <a href="{{ url_for('dashboard') }}" class="{{ 'on' if request.endpoint=='dashboard' }}">ภาพรวม</a>
+    {% if is_lead() %}
+    <a href="{{ url_for('planning') }}" class="{{ 'on' if request.endpoint=='planning' }}">ใบสมัคร & จัดทีม</a>
+    <a href="{{ url_for('audit_new') }}" class="{{ 'on' if request.endpoint=='audit_new' }}">+ เพิ่มการตรวจ</a>
+    <a href="{{ url_for('import_xlsx') }}" class="{{ 'on' if request.endpoint=='import_xlsx' }}">นำเข้า Excel</a>
+    <a href="{{ url_for('users') }}" class="{{ 'on' if request.endpoint=='users' }}">ผู้ใช้</a>
+    <a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint=='settings' }}">ตั้งค่า</a>
+    {% endif %}
+    {% endif %}
+    <a href="{{ url_for('account') }}" class="who" title="บัญชีของฉัน">👤 {{ g.user.full_name|short }}</a>
+    <a href="{{ url_for('logout') }}">ออก</a>
+  </nav>
+  {% endif %}
+</header>
+{% endblock %}
+
+<div class="flashes" id="flashes">
+{% for cat, msg in get_flashed_messages(with_categories=true) %}
+  <div class="flash {{ cat }}">{{ msg }}</div>
+{% endfor %}
+</div>
+
+{% block body %}
+<main class="wrap">{% block content %}{% endblock %}</main>
+{% endblock %}
+
+<div class="modal-bg" id="modal"><div class="modal">
+  <h3 id="modal-title"></h3><div id="modal-body"></div>
+  <div class="actions" id="modal-actions"></div>
+</div></div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}?v=4"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

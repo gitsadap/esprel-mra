@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report{{ rnd }}_{{ a.lab_name }}_{{ d.year }}</title>
+<style>
+@font-face{font-family:"Plex Thai";font-weight:400;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-thai-400-normal.woff2') }}) format("woff2");unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:"Plex Thai";font-weight:400;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-latin-400-normal.woff2') }}) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Plex Thai";font-weight:600;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-thai-600-normal.woff2') }}) format("woff2");unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:"Plex Thai";font-weight:600;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-latin-600-normal.woff2') }}) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Plex Thai";font-weight:700;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-thai-700-normal.woff2') }}) format("woff2");unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:"Plex Thai";font-weight:700;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-latin-700-normal.woff2') }}) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+:root{--navy:#14213d;--orange:#e8711a;--ink:#1b2236;--ink2:#4a5470;--ink3:#7a8399;--line:#e2e6ee;--soft:#f5f7fb;
+  --nc:#dc2626;--obs:#d97706;--sug:#2563eb;--good:#15803d;--ok:#0e7490;--warn:#b45309;--bad:#c62828}
+@page{size:A4;margin:14mm 14mm 16mm}
+@page{@bottom-left{content:"ESPReL MRA · {{ a.lab_name }} · ครั้งที่ {{ rnd }}/{{ d.year }}";font:8pt "Plex Thai",sans-serif;color:#8a93a6}
+      @bottom-right{content:"หน้า " counter(page) " / " counter(pages);font:8pt "Plex Thai",sans-serif;color:#8a93a6}}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html{background:#e9ecf2}
+body{margin:0;font-family:"Plex Thai","Sarabun","Tahoma",sans-serif;color:var(--ink);font-size:10.5pt;line-height:1.5}
+.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--navy);color:#fff}
+.toolbar a,.toolbar button{font:inherit;font-size:14px;color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-decoration:none;cursor:pointer}
+.toolbar .pri{background:var(--orange);border-color:var(--orange);font-weight:600}
+.toolbar .sp{flex:1}
+.toolbar small{opacity:.8}
+.doc{max-width:210mm;margin:16px auto 40px;background:#fff;box-shadow:0 10px 40px rgba(20,30,60,.18)}
+.page{padding:14mm}
+.brk{break-before:page}
+.avoid{break-inside:avoid}
+/* cover */
+.cover-band{background:linear-gradient(120deg,#14213d 0%,#1f3566 70%,#2a4a8a 100%);color:#fff;border-radius:14px;padding:22px 24px;position:relative;overflow:hidden}
+.cover-band::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:linear-gradient(90deg,var(--orange),#f6b26b)}
+.cover-band .kicker{font-size:9pt;letter-spacing:.5px;opacity:.85}
+.cover-band h1{font-size:17pt;margin:4px 0 2px;line-height:1.3}
+.cover-band .sub{font-size:11pt;opacity:.92}
+.cover-band .round{position:absolute;right:22px;top:20px;text-align:center;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:8px 14px}
+.cover-band .round b{display:block;font-size:22pt;line-height:1}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin:14px 0;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.info div{font-size:9.5pt}.info span{color:var(--ink3);display:block;font-size:8pt}
+.info .full{grid-column:1/-1}
+.kpis{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:10px;margin:12px 0}
+.kpi{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kpi .l{font-size:8pt;color:var(--ink3)}.kpi .v{font-size:18pt;font-weight:700;line-height:1.2}
+.kpi.main{display:flex;gap:12px;align-items:center;background:var(--soft)}
+.two{display:grid;grid-template-columns:78mm 1fr;gap:14px;align-items:start}
+.radar{width:100%;height:auto}
+h2{font-size:12.5pt;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:5px;height:16px;border-radius:3px;background:var(--orange)}
+table{width:100%;border-collapse:collapse;font-size:9.2pt}
+th{background:var(--navy);color:#fff;font-weight:600;padding:6px 8px;text-align:left}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
+td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.el td{background:#eef2f9;font-weight:600}
+tr.tot td{background:var(--navy);color:#fff;font-weight:700}
+.pbar{height:6px;background:#e9ecf3;border-radius:9px;overflow:hidden;min-width:60px}
+.pbar i{display:block;height:100%;border-radius:9px}
+.lv-good{color:var(--good)}.lv-ok{color:var(--ok)}.lv-warn{color:var(--warn)}.lv-bad{color:var(--bad)}
+.bg-good{background:#22a05b}.bg-ok{background:#1595b3}.bg-warn{background:#e19126}.bg-bad{background:#d64545}
+.legend{font-size:8pt;color:var(--ink3);text-align:center;margin-top:-4px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin:0 4px 0 10px}
+/* findings */
+.elhead{display:flex;align-items:center;gap:10px;margin:14px 0 6px;padding:8px 12px;border-radius:10px;background:#eef2f9}
+.elhead .no{width:26px;height:26px;border-radius:7px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700;font-size:10pt}
+.elhead .t{flex:1;font-weight:600}
+.elhead .p{font-weight:700}
+.none{color:var(--good);font-weight:600;padding:2px 12px 6px}
+.f{border:1px solid var(--line);border-left:4px solid var(--nc);border-radius:10px;padding:8px 12px;margin:6px 0}
+.f.OBS{border-left-color:var(--obs)}.f.SUG{border-left-color:var(--sug)}
+.f .top{display:flex;gap:8px;align-items:baseline}
+.tag{display:inline-block;padding:0 7px;border-radius:5px;color:#fff;font-size:8pt;font-weight:700}
+.tag.NC{background:var(--nc)}.tag.OBS{background:var(--obs)}.tag.SUG{background:var(--sug)}
+.f .ref{font-weight:700;color:#2a3fa0}
+.f .it{color:var(--ink3);font-size:8.5pt}
+.f .c{margin-top:3px}
+.ph{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.ph img{width:100%;height:38mm;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.st{font-weight:700;white-space:nowrap}
+.sign{margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end}
+.sign .box{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.next{margin-top:14px;padding:12px 14px;border-radius:12px;background:#fff6ee;border:1px solid #f6d2b3;display:flex;gap:14px;align-items:center}
+.next img{width:26mm;height:26mm}
+.draft{position:fixed;top:45%;left:0;right:0;text-align:center;font-size:60pt;font-weight:700;color:rgba(200,40,40,.10);transform:rotate(-24deg);pointer-events:none;z-index:0}
+@media print{html{background:#fff}.toolbar{display:none}.doc{box-shadow:none;margin:0;max-width:none}.page{padding:0}}
+@media screen and (max-width:820px){.page{padding:16px}.two,.kpis,.info,.sign{grid-template-columns:1fr}.cover-band .round{position:static;display:inline-block;margin-top:10px}}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <a href="{{ url_for('audit_view', audit_id=a.id) if is_staff() else url_for('lab_audit', audit_id=a.id) }}">← กลับ</a>
+  <b>Report {{ rnd }} · {{ a.lab_name }}</b>
+  <span class="sp"></span>
+  {% if not issued %}<small>ฉบับร่าง (ยังไม่ออกรายงาน){% if d.unanswered %} · ยังไม่ให้คะแนน {{ d.unanswered }} ข้อ{% endif %}</small>{% endif %}
+  <small>เลือกปลายทาง “บันทึกเป็น PDF” ในหน้าต่างพิมพ์</small>
+  <button class="pri" onclick="window.print()">⬇ ดาวน์โหลด PDF / พิมพ์</button>
+</div>
+{% if not issued %}<div class="draft">ฉบับร่าง</div>{% endif %}
+
+<div class="doc">
+<section class="page">
+  <div class="cover-band">
+    <div class="kicker">{{ d.settings.activity_name }}</div>
+    <h1>สรุปผลตรวจประเมินความปลอดภัยห้องปฏิบัติการ<br>ตามมาตรฐาน ESPReL Checklist</h1>
+    <div class="sub">และรายงานข้อบกพร่อง/ข้อสังเกตและข้อเสนอแนะ · ประจำปี {{ d.year }}</div>
+    <div class="round"><span style="font-size:8pt;opacity:.85">ครั้งที่</span><b>{{ rnd }}</b></div>
+  </div>
+
+  <div class="info">
+    <div class="full"><span>1) ชื่อห้องปฏิบัติการ</span><b style="font-size:12pt">{{ a.lab_name }}</b></div>
+    <div><span>2) เลขทะเบียนห้องปฏิบัติการ (ESPReL no.)</span>{{ a.espre_no or '-' }}</div>
+    <div><span>4) วันที่ตรวจประเมิน</span>{{ d.audit_date }}</div>
+    <div class="full"><span>3) สังกัด</span>{{ a.affiliation or a.faculty or '-' }}</div>
+  </div>
+
+  {% set T = d.total %}
+  {% set lv = 'good' if T.pct >= 90 else ('ok' if T.pct >= 75 else ('warn' if T.pct >= 50 else 'bad')) %}
+  <div class="kpis">
+    <div class="kpi main">
+      <svg width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="none" stroke="#e9ecf3" stroke-width="7"/>
+        <circle cx="32" cy="32" r="27" fill="none" class="lv-{{ lv }}" stroke="currentColor" stroke-width="7" stroke-linecap="round"
+          stroke-dasharray="{{ (T.pct * 1.6965)|round(1) }} 170" transform="rotate(-90 32 32)"/></svg>
+      <div><div class="l">5) คะแนนรวมครั้งที่ {{ rnd }}</div><div class="v lv-{{ lv }}">{{ '%.2f'|format(T.pct) }}%</div>
+        <div class="l">{{ T.got }} / {{ T.max }} คะแนน{% if rnd == 2 %} · ครั้งที่ 1 = {{ '%.2f'|format(d.r1total.pct) }}%{% endif %}</div></div>
+    </div>
+    <div class="kpi"><div class="l">ข้อบกพร่อง (NC)</div><div class="v" style="color:var(--nc)">{{ d.counts.NC }}</div></div>
+    <div class="kpi"><div class="l">ข้อสังเกต (OBS)</div><div class="v" style="color:var(--obs)">{{ d.counts.OBS }}</div></div>
+    <div class="kpi"><div class="l">ข้อเสนอแนะ</div><div class="v" style="color:var(--sug)">{{ d.counts.SUG }}</div></div>
+  </div>
+
+  <h2>คะแนนของห้องปฏิบัติการตามองค์ประกอบ</h2>
+  <div class="two avoid">
+    <div>{{ d.radar_svg|safe }}
+      <div class="legend"><i style="background:#4472c4"></i>ครั้งที่ 1{% if rnd == 2 %}<i style="background:#ed7d31"></i>ครั้งที่ 2{% endif %}</div></div>
+    <table>
+      <thead><tr><th>องค์ประกอบ</th><th class="n">เต็ม</th><th class="n">ได้</th><th class="n">%</th><th style="width:22mm"></th></tr></thead>
+      <tbody>
+      {% for e in d.elements %}{% set l = 'good' if e.pct >= 90 else ('ok' if e.pct >= 75 else ('warn' if e.pct >= 50 else 'bad')) %}
+        <tr><td><b>{{ e.no }}.</b> {{ e.title }}</td><td class="n">{{ e.max }}</td><td class="n">{{ e.got }}</td>
+          <td class="n lv-{{ l }}"><b>{{ '%.2f'|format(e.pct) }}</b></td><td><div class="pbar"><i class="bg-{{ l }}" style="width:{{ e.pct }}%"></i></div></td></tr>
+      {% endfor %}
+        <tr class="tot"><td>รวม</td><td class="n">{{ T.max }}</td><td class="n">{{ T.got }}</td><td class="n">{{ '%.2f'|format(T.pct) }}</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="page brk">
+  <h2>คะแนนของห้องปฏิบัติการตามหัวข้อ</h2>
+  <table>
+    <thead><tr><th>หัวข้อ</th><th class="n">คะแนนเต็ม</th><th class="n">คะแนนที่ได้</th><th class="n">%</th><th style="width:26mm"></th></tr></thead>
+    <tbody>
+    {% for e in d.elements %}
+      <tr class="el"><td>{{ e.no }}. {{ e.title }}</td><td class="n">{{ e.max }}</td><td class="n">{{ e.got }}</td><td class="n">{{ '%.2f'|format(e.pct) }}</td><td></td></tr>
+      {% for s in e.sections if s.in_report %}{% set l = 'good' if s.pct >= 90 else ('ok' if s.pct >= 75 else ('warn' if s.pct >= 50 else 'bad')) %}
+      <tr class="avoid"><td style="padding-left:18px">{{ s.code }} {{ s.short }}</td><td class="n">{{ s.max }}</td><td class="n">{{ s.got }}</td>
+        <td class="n lv-{{ l }}">{{ '%.2f'|format(s.pct) }}</td><td><div class="pbar"><i class="bg-{{ l }}" style="width:{{ s.pct }}%"></i></div></td></tr>
+      {% endfor %}
+    {% endfor %}
+      <tr class="tot"><td>รวม</td><td class="n">{{ T.max }}</td><td class="n">{{ T.got }}</td><td class="n">{{ '%.2f'|format(T.pct) }}</td><td></td></tr>
+    </tbody>
+  </table>
+
+  {% if rnd == 2 and d.followups %}
+  <h2 class="brk" style="margin-top:0">ผลการติดตามการแก้ไขข้อบกพร่อง/ข้อสังเกตจากครั้งที่ 1</h2>
+  <table>
+    <thead><tr><th style="width:15mm">ข้อ</th><th style="width:14mm">ประเภท</th><th>ข้อค้นพบครั้งที่ 1</th><th>CAPA ของห้องปฏิบัติการ</th><th>ผลตรวจครั้งที่ 2</th><th style="width:20mm">สถานะ</th></tr></thead>
+    <tbody>{% for f in d.followups %}
+      <tr class="avoid"><td><b>{{ f.ref }}</b></td><td><span class="tag {{ f.ftype }}">{{ FTYPES[f.ftype].short }}</span></td>
+        <td>{{ f.comment }}</td><td>{{ f.capa_action or '-' }}{% if f.capa_files %}<br><small style="color:var(--ink3)">📎 หลักฐาน {{ f.capa_files|length }} ไฟล์</small>{% endif %}</td>
+        <td>{{ f.fnote or '-' }}</td>
+        <td class="st" style="color:{{ FOLLOWUP[f.status].color if f.status in FOLLOWUP else '#7a8399' }}">{{ f.status_th }}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+  {% endif %}
+</section>
+
+<section class="page brk">
+  <h2 style="margin-top:0">ข้อเสนอแนะของการตรวจประเมิน</h2>
+  {% for e in d.elements %}{% set l = 'good' if e.pct >= 90 else ('ok' if e.pct >= 75 else ('warn' if e.pct >= 50 else 'bad')) %}
+  <div class="elhead avoid"><span class="no">{{ e.no }}</span><span class="t">องค์ประกอบที่ {{ e.no }} {{ e.title }}</span><span class="p lv-{{ l }}">{{ '%.2f'|format(e.pct) }}%</span></div>
+  {% if not e.findings %}<div class="none">✓ ไม่มีข้อเสนอแนะ</div>
+  {% else %}
+    {% for f in e.findings %}
+    <div class="f {{ f.ftype }} avoid">
+      <div class="top"><span class="tag {{ f.ftype }}">{{ f.ftype_th }}</span><span class="ref">{{ f.ref }}</span>
+        <span class="it">{{ f.text }} · คะแนน {{ f.score or '–' }}/{{ f.max }}</span></div>
+      <div class="c">{{ f.comment }}</div>
+      {% if f.photos %}<div class="ph">{% for p in f.photos[:6] %}<img src="{{ file_url(p) }}" alt="รูปหลักฐาน">{% endfor %}</div>{% endif %}
+    </div>
+    {% endfor %}
+  {% endif %}
+  {% endfor %}
+
+  <div class="sign avoid">
+    <div class="box"><b>รายชื่อคณะผู้ตรวจประเมิน</b>
+      {% for m in d.team %}<div style="font-size:9.5pt">{{ loop.index }}. {{ m.full_name }}{% if m.full_name == d.lead_name %} <span style="color:var(--ink3)">(หัวหน้าผู้ตรวจประเมิน)</span>{% endif %}</div>{% else %}<div class="muted">-</div>{% endfor %}</div>
+    <div style="text-align:right"><b>{{ d.settings.team_title }}</b><br>{{ d.report_date }}</div>
+  </div>
+  {% if d.next_steps %}
+  <div class="next avoid">
+    <div style="flex:1"><b>ข้อแนะนำต่อไป</b><div style="font-size:9.5pt;text-align:justify">{{ d.next_steps }}</div></div>
+    {% if rnd == 1 %}<img src="{{ url_for('qr_image') }}" alt="QR แบบฟอร์ม">{% endif %}
+  </div>
+  {% endif %}
+</section>
+</div>
+{% if request.args.get('print') %}<script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));</script>{% endif %}
+</body>
+</html>

@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}{{ a.lab_name }}{% endblock %}
+{% block content %}
+{% set S = r2 if rnd == 2 else r1 %}
+{% set ST = st[rnd] %}
+{% set done_n = ST.values()|selectattr('done')|list|length %}
+{% set res = resp[rnd] %}
+<div class="page-head">
+  <div style="min-width:0">
+    <div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a> / ห้องปฏิบัติการ</div>
+    <h1 style="margin-bottom:4px">{{ a.lab_name }}</h1>
+    <div class="muted" style="font-size:.9rem">ESPReL no. {{ a.espre_no or '—' }} · {{ a.affiliation or '' }} · ปี {{ a.year_be }}</div>
+  </div>
+  <div class="row">
+    <span class="badge {{ STATUS_TH[a.status][1] }}">{{ STATUS_TH[a.status][0] }}</span>
+    <a class="btn sm" href="{{ url_for('export_xlsx', audit_id=a.id) }}">⇩ Excel</a>
+    {% if is_lead() %}<a class="btn sm" href="{{ url_for('audit_edit', audit_id=a.id) }}">✎ แก้ไขข้อมูล/ทีม</a>{% endif %}
+  </div>
+</div>
+
+{% set cur_i = STATUS_ORDER.index(a.status) %}
+{% set rep_of = {} %}
+{% for r in reports %}{% if r.round not in rep_of %}{% set _ = rep_of.update({r.round: r}) %}{% endif %}{% endfor %}
+{% set n_follow = follow|length %}
+{% set n_capa = namespace(v=0) %}{% for i in follow %}{% if capa.get(i) and capa[i].action %}{% set n_capa.v = n_capa.v + 1 %}{% endif %}{% endfor %}
+<div class="card" style="margin-bottom:14px">
+  <div class="stepper">
+    {% for lbl in ['ตรวจรอบที่ 1<br><small>' ~ (thai_date(a.r1_date, True) if a.r1_date else 'ยังไม่กำหนด') ~ '</small>',
+                   'ให้ NC/OBS<br>ออก Report 1',
+                   'ห้องปฏิบัติการ<br>ตอบ CAPA',
+                   'ตรวจรอบที่ 2<br><small>' ~ (thai_date(a.r2_date, True) if a.r2_date else 'เฉพาะ NC/OBS') ~ '</small>',
+                   'ออก Report 2<br>ปิดการตรวจ'] %}
+      {% set i = loop.index0 %}
+      {% set fin = i < cur_i or (i == cur_i and a.status == 'r2_reported') %}
+      <div class="st {{ 'done' if fin else ('now' if i == cur_i else '') }}">
+        <div class="c">{{ '✓' if fin else loop.index }}</div>{{ lbl|safe }}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# -------- next action panel -------- #}
+{% set wr = 2 if a.status in ('r2','r2_reported') else 1 %}
+{% set WS = r2 if wr == 2 else r1 %}
+{% set WST = st[wr] %}
+{% set wdone = WST.values()|selectattr('done')|list|length %}
+<div class="card" style="margin-bottom:14px;border-left:5px solid var(--brand)">
+  {% if a.status in ('r1','r2') %}
+    {% set fdone = namespace(v=0) %}{% for e, p in r2prog.items() %}{% set fdone.v = fdone.v + p[0] %}{% endfor %}
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div>
+        <h3 style="margin-bottom:2px">กำลังตรวจประเมินรอบที่ {{ wr }}{% if wr == 2 %} <small class="muted">(เฉพาะข้อ NC/OBS)</small>{% endif %}</h3>
+        <div class="muted">ยืนยันตรวจเสร็จแล้ว <b>{{ wdone }}/7</b> องค์ประกอบ ·
+          {% if wr == 1 %}ตรวจแล้ว {{ WS.total.answered }}/{{ WS.total.count }} ข้อ · พบ NC {{ WS.total.NC }} · OBS {{ WS.total.OBS }} · ข้อเสนอแนะ {{ WS.total.SUG }}
+          {% else %}ติดตามแล้ว {{ fdone.v }}/{{ n_follow }} ข้อ{% endif %}</div>
+      </div>
+      <div class="row">
+        {% set ns = namespace(f=none, mine=none) %}
+        {% for e in range(1,8) %}{% if not (WST.get(e) and WST[e].done) %}
+          {% if ns.f is none %}{% set ns.f = e %}{% endif %}
+          {% if ns.mine is none and asg.get(e) and asg[e].user_id == g.user.id %}{% set ns.mine = e %}{% endif %}
+        {% endif %}{% endfor %}
+        {% set first_el = ns.mine or ns.f or 1 %}
+        <a class="btn primary" href="{{ url_for('assess', audit_id=a.id, rnd=wr, el=first_el) }}">▶ {{ 'เริ่มตรวจ' if (wr == 1 and not WS.total.answered) else 'ตรวจต่อ' }} รอบที่ {{ wr }}</a>
+        <a class="btn" href="{{ url_for('closing', audit_id=a.id, rnd=wr) }}">🖥 สรุปประชุมปิด</a>
+        <a class="btn" href="{{ url_for('report_view', audit_id=a.id, rnd=wr) }}">👁 ตัวอย่างรายงาน PDF</a>
+      </div>
+    </div>
+    <div class="bar" style="margin:12px 0 4px"><i style="width:{{ (WS.total.progress if wr == 1 else ((fdone.v * 100 / n_follow) if n_follow else 100))|round|int }}%"></i></div>
+    {% if is_lead() %}
+    <div class="sep"></div>
+    <form method="post" action="{{ url_for('make_report', audit_id=a.id, rnd=wr) }}" class="row" style="align-items:flex-end"
+          data-confirm-title="สร้าง Report {{ wr }}?"
+          data-confirm="{% if wdone < 7 %}<p style='color:var(--bad)'>⚠ ยังมี {{ 7 - wdone }} องค์ประกอบที่ผู้ตรวจยังไม่ได้กดยืนยัน{% if wr == 1 and WS.total.count - WS.total.answered %} และมี {{ WS.total.count - WS.total.answered }} ข้อที่ยังไม่ให้คะแนน (คิดเป็น 0 คะแนน){% endif %}</p>{% endif %}<p>ระบบจะสรุปคะแนน กราฟ และ NC/OBS/ข้อเสนอแนะ เป็นรายงาน (PDF/Word) อัตโนมัติ และ<b>ปิดการแก้ไขรอบที่ {{ wr }}</b>{% if wr == 1 %} — ห้องปฏิบัติการจะเห็นผลทุกข้อและเริ่มตอบ CAPA ได้{% endif %}</p>"
+          data-ok-label="สร้างรายงาน" data-ok-cls="brand">
+      <div class="field" style="margin:0"><label>วันที่ลงในรายงาน</label><input type="date" name="report_date" value="{{ a['r%d_report_date'|format(wr)] or '' }}"></div>
+      {% if wr == 1 %}<div class="field" style="margin:0"><label>กำหนดส่ง CAPA</label><input type="date" name="deadline" value="{{ a.deadline or '' }}"></div>{% endif %}
+      <button class="btn brand" type="submit">📄 สร้าง Report {{ wr }}</button>
+      {% if wdone == 7 %}<span class="badge green">✓ ครบทั้ง 7 องค์ประกอบ พร้อมออกรายงาน</span>{% endif %}
+    </form>
+    {% endif %}
+  {% elif a.status == 'r1_reported' %}
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><h3 style="margin-bottom:2px">ออก Report 1 แล้ว — รอห้องปฏิบัติการตอบ CAPA</h3>
+        <div class="muted">ต้องตอบ {{ n_follow }} ข้อ (NC {{ r1.total.NC }} · OBS {{ r1.total.OBS }}) · ห้องปฏิบัติการกรอกแล้ว <b>{{ n_capa.v }}/{{ n_follow }}</b> ข้อ
+          {% if a.deadline %} · กำหนดส่ง {{ thai_date(a.deadline) }}{% endif %}</div>
+        {% if a.capa_return_note %}<div style="color:var(--warn);font-size:.9rem;margin-top:4px">ส่งกลับให้แก้ไข: {{ a.capa_return_note }}</div>{% endif %}
+      </div>
+      <div class="row">
+        <a class="btn primary" href="{{ url_for('report_view', audit_id=a.id, rnd=1) }}">📄 Report 1 (PDF)</a>
+        {% if rep_of.get(1) %}<a class="btn" href="{{ url_for('report_download', report_id=rep_of[1].id) }}">⇩ Word</a>{% endif %}
+        <a class="btn" href="{{ url_for('lab_audit', audit_id=a.id) }}">👁 มุมมองห้องปฏิบัติการ</a>
+      </div>
+    </div>
+    <div class="bar" style="margin:12px 0 4px"><i style="width:{{ ((n_capa.v * 100 / n_follow) if n_follow else 100)|round|int }}%"></i></div>
+    {% if is_lead() %}
+    <div class="sep"></div>
+    <div class="row">
+      <span class="muted" style="font-size:.88rem">🔒 เริ่มตรวจรอบที่ 2 ได้เมื่อห้องปฏิบัติการกด “ส่ง CAPA”</span>
+      <span class="spacer"></span>
+      <form method="post" action="{{ url_for('reopen', audit_id=a.id, rnd=1) }}" data-confirm="เปิดให้แก้ไขผลการตรวจรอบที่ 1 อีกครั้ง? (ห้องปฏิบัติการจะไม่เห็นผลจนกว่าจะออก Report 1 ใหม่)">
+        <button class="btn sm ghost" type="submit">↺ เปิดแก้ไขรอบที่ 1</button></form>
+    </div>
+    {% endif %}
+  {% elif a.status == 'capa_submitted' %}
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><h3 style="margin-bottom:2px">ห้องปฏิบัติการส่ง CAPA แล้ว — พร้อมตรวจรอบที่ 2</h3>
+        <div class="muted">ส่งเมื่อ {{ thai_date(a.capa_submitted_at, True) }} {{ (a.capa_submitted_at or '')[11:16] }} · รอบที่ 2 ตรวจเฉพาะ {{ n_follow }} ข้อที่เป็น NC/OBS</div></div>
+      <div class="row">
+        <a class="btn" href="{{ url_for('lab_audit', audit_id=a.id) }}">👁 ดู CAPA ทั้งหมด</a>
+      </div>
+    </div>
+    {% if is_lead() %}
+    <div class="sep"></div>
+    <div class="row" style="align-items:flex-end">
+      <form method="post" action="{{ url_for('start_round2', audit_id=a.id) }}" class="row" style="align-items:flex-end"
+            data-confirm-title="เริ่มตรวจรอบที่ 2?" data-confirm="รอบที่ 2 จะเปิดให้ตรวจเฉพาะข้อ NC/OBS จากรอบที่ 1 พร้อม CAPA และหลักฐานของห้องปฏิบัติการ ข้ออื่นใช้คะแนนรอบที่ 1">
+        <div class="field" style="margin:0"><label>วันที่ตรวจครั้งที่ 2</label><input type="date" name="r2_date" value="{{ a.r2_date or '' }}"></div>
+        <button class="btn brand" type="submit">▶ เริ่มตรวจรอบที่ 2</button>
+      </form>
+      <form method="post" action="{{ url_for('capa_return', audit_id=a.id) }}" class="row" style="align-items:flex-end"
+            data-confirm="ส่ง CAPA กลับให้ห้องปฏิบัติการแก้ไข?">
+        <div class="field" style="margin:0"><label>เหตุผล (แจ้งห้องปฏิบัติการ)</label><input type="text" name="note" placeholder="เช่น ข้อ 4.5.2 ยังไม่มีหลักฐาน"></div>
+        <button class="btn" type="submit">↩ ส่ง CAPA กลับ</button>
+      </form>
+    </div>
+    {% endif %}
+  {% else %}
+    <div class="row" style="justify-content:space-between">
+      <div><h3 style="margin-bottom:2px">การตรวจประเมินเสร็จสิ้น</h3>
+        <div class="muted">คะแนนรอบที่ 1 {{ r1.total.pct }}% → รอบที่ 2 <b>{{ r2.total.pct }}%</b></div></div>
+      <div class="row">
+        <a class="btn" href="{{ url_for('report_view', audit_id=a.id, rnd=1) }}">📄 Report 1</a>
+        <a class="btn primary" href="{{ url_for('report_view', audit_id=a.id, rnd=2) }}">📄 Report 2 (PDF)</a>
+        {% if rep_of.get(2) %}<a class="btn" href="{{ url_for('report_download', report_id=rep_of[2].id) }}">⇩ Word</a>{% endif %}
+        <a class="btn" href="{{ url_for('closing', audit_id=a.id, rnd=2) }}">🖥 สรุปประชุมปิดรอบ 2</a>
+        {% if is_lead() %}<form method="post" action="{{ url_for('reopen', audit_id=a.id, rnd=2) }}" data-confirm="เปิดให้แก้ไขผลการตรวจรอบที่ 2 อีกครั้ง?"><button class="btn sm ghost">↺ เปิดแก้ไขรอบที่ 2</button></form>{% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+{# -------- round switch -------- #}
+<div class="toolbar">
+  <div class="seg">
+    <a href="{{ url_for('audit_view', audit_id=a.id, round=1) }}"><button class="{{ 'on' if rnd==1 }}">ผลการตรวจรอบที่ 1</button></a>
+    {% if a.status in ('r2','r2_reported') %}<a href="{{ url_for('audit_view', audit_id=a.id, round=2) }}"><button class="{{ 'on' if rnd==2 }}">ผลการตรวจรอบที่ 2</button></a>{% endif %}
+  </div>
+  <span class="muted">วันที่ตรวจ {{ thai_date(a['r%d_date'|format(rnd)]) if a['r%d_date'|format(rnd)] else '—' }}</span>
+</div>
+
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card kpi"><div class="k-label">คะแนนรวมรอบที่ {{ rnd }}</div>
+    <div class="k-val tnum lv-{{ level_of(S.total.pct) }}">{{ S.total.pct }}%</div>
+    <div class="k-sub tnum">{{ S.total.got }} / {{ S.total.max }} คะแนน{% if rnd==2 %} · รอบ 1 = {{ r1.total.pct }}%{% endif %}</div></div>
+  <div class="card kpi"><div class="k-label">ข้อบกพร่อง (NC)</div><div class="k-val tnum" style="color:var(--nc)">{{ S.total.NC }}</div><div class="k-sub">ต้องแก้ไข</div></div>
+  <div class="card kpi"><div class="k-label">ข้อสังเกต (OBS)</div><div class="k-val tnum" style="color:var(--obs)">{{ S.total.OBS }}</div><div class="k-sub">ควรปรับปรุง</div></div>
+  <div class="card kpi"><div class="k-label">ข้อเสนอแนะ</div><div class="k-val tnum" style="color:var(--sug)">{{ S.total.SUG }}</div><div class="k-sub">ความคืบหน้า {{ S.total.progress }}%</div></div>
+</div>
+
+<div class="grid g2" style="margin-bottom:14px;align-items:start">
+  <div class="card">
+    <div class="card-h"><h3>7 องค์ประกอบ · รอบที่ {{ rnd }}</h3><span class="muted">{{ done_n }}/7 ยืนยันแล้ว</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+    {% for e in range(1,8) %}{% set es = S.elements[e] %}{% set sd = ST.get(e) %}
+      <a class="el-tile {{ 'done' if sd and sd.done }}" href="{{ url_for('assess', audit_id=a.id, rnd=rnd, el=e) }}">
+        <div class="no">{{ '✓' if sd and sd.done else e }}</div>
+        <div class="body">
+          <div class="name">{{ e }}. {{ ELEMENTS[e].title }}</div>
+          <div class="meta">{{ asg[e].full_name if asg.get(e) else 'ยังไม่มอบหมายผู้ตรวจ' }} ·
+            {% if rnd == 2 %}ติดตาม {{ r2prog[e][0] }}/{{ r2prog[e][1] }} ข้อ{% else %}ตรวจแล้ว {{ es.answered }}/{{ es.count }}{% endif %}
+            {% if es.NC %}· <span style="color:var(--nc)">NC {{ es.NC }}</span>{% endif %}
+            {% if es.OBS %}· <span style="color:var(--obs)">OBS {{ es.OBS }}</span>{% endif %}
+            {% if es.SUG %}· <span style="color:var(--sug)">แนะนำ {{ es.SUG }}</span>{% endif %}</div>
+          <div class="bar {{ level_of(es.pct) }}" style="margin-top:5px;height:6px"><i style="width:{{ (es.progress if rnd == 1 else ((r2prog[e][0] * 100 / r2prog[e][1]) if r2prog[e][1] else 100))|round|int }}%"></i></div>
+        </div>
+        <div style="text-align:right;flex:none">
+          <div class="tnum" style="font-weight:700" class="lv-{{ level_of(es.pct) }}"><span class="lv-{{ level_of(es.pct) }}">{{ es.pct }}%</span></div>
+          <div class="muted tnum" style="font-size:.8rem">{{ es.got }}/{{ es.max }}</div>
+        </div>
+      </a>
+    {% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-h"><h3>กราฟร้อยละคะแนนตามองค์ประกอบ</h3></div>
+    <div style="position:relative;max-width:460px;margin:0 auto"><canvas id="radar" height="320"></canvas></div>
+    <div class="tbl-wrap" style="margin-top:12px">
+      <table class="tbl">
+        <thead><tr><th>องค์ประกอบ</th><th class="num">รอบ 1</th>{% if a.status != 'r1' %}<th class="num">รอบ 2</th><th class="num">เปลี่ยนแปลง</th>{% endif %}</tr></thead>
+        <tbody>
+        {% for e in range(1,8) %}
+          <tr><td>{{ e }}. {{ ELEMENTS[e].short }}</td><td class="num">{{ r1.elements[e].pct }}</td>
+          {% if a.status != 'r1' %}<td class="num">{{ r2.elements[e].pct if r2.elements[e].answered else '–' }}</td>
+          <td class="num">{% if r2.elements[e].answered %}{% set dlt = (r2.elements[e].pct - r1.elements[e].pct)|round(2) %}<span class="{{ 'lv-good' if dlt>0 else ('lv-bad' if dlt<0 else 'muted') }}">{{ '+' if dlt>0 }}{{ dlt }}</span>{% else %}–{% endif %}</td>{% endif %}</tr>
+        {% endfor %}
+          <tr class="total"><td>รวม</td><td class="num">{{ r1.total.pct }}</td>{% if a.status != 'r1' %}<td class="num">{{ r2.total.pct if r2.total.answered else '–' }}</td><td></td>{% endif %}</tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-h"><h3>คะแนนตามหัวข้อ · รอบที่ {{ rnd }}</h3></div>
+  <div class="tbl-wrap">
+  <table class="tbl">
+    <thead><tr><th>หัวข้อ</th><th class="num">คะแนนเต็ม</th><th class="num">คะแนนที่ได้</th><th class="num">%</th></tr></thead>
+    <tbody>
+    {% for e in range(1,8) %}{% set es = S.elements[e] %}
+      <tr class="el"><td>{{ e }}. {{ ELEMENTS[e].title }}</td><td class="num">{{ es.max }}</td><td class="num">{{ es.got }}</td><td class="num">{{ es.pct }}</td></tr>
+      {% for code, sc in es.sections.items() %}
+      <tr><td style="padding-left:26px">{{ code }} {{ sc.title }}</td><td class="num">{{ sc.max }}</td><td class="num">{{ sc.got }}</td><td class="num lv-{{ level_of(sc.pct) }}">{{ sc.pct }}</td></tr>
+      {% endfor %}
+    {% endfor %}
+      <tr class="total"><td>รวม</td><td class="num">{{ S.total.max }}</td><td class="num">{{ S.total.got }}</td><td class="num">{{ S.total.pct }}</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% if rnd == 2 %}
+<div class="card" style="margin-bottom:14px">
+  <div class="card-h"><h3>ติดตามการแก้ไข NC/OBS จากรอบที่ 1</h3></div>
+  {% set fu = [] %}
+  {% for iid, r in resp[1].items() if r.ftype in ('NC','OBS') %}{% set _ = fu.append((iid, r)) %}{% endfor %}
+  {% if not fu %}<div class="empty">ไม่มี NC/OBS จากรอบที่ 1</div>{% else %}
+  <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>ข้อ</th><th>ประเภท</th><th>ข้อค้นพบรอบ 1</th><th>CAPA ของห้องปฏิบัติการ</th><th>ผลตรวจรอบ 2</th><th>สถานะ</th></tr></thead>
+    <tbody>
+    {% for iid, r in fu|sort(attribute='0') %}{% set r2r = resp[2].get(iid) %}
+      <tr><td class="nowrap"><a href="{{ url_for('assess', audit_id=a.id, rnd=2, el=ITEMS[iid].element) }}#i-{{iid}}">{{ ITEMS[iid].ref }}</a></td>
+        <td><span class="tag {{ r.ftype }}">{{ FTYPES[r.ftype].short }}</span></td>
+        <td style="min-width:220px">{{ r.comment or '' }}</td>
+        <td style="min-width:220px">{% set c = capa.get(iid) %}{% if c and c.action %}{{ c.action }}{% if c.due_date %}<br><small>กำหนดเสร็จ {{ thai_date(c.due_date, True) }}</small>{% endif %}{% else %}<span class="muted">–</span>{% endif %}
+          {% set cf = atts.get(('capa', 1, iid), []) %}{% if cf %}<br><small>📎 หลักฐาน {{ cf|length }} ไฟล์</small>{% endif %}</td>
+        <td style="min-width:180px">{{ r2r.fnote if r2r and r2r.fnote else '–' }}</td>
+        <td class="nowrap">{% if r2r and r2r.followup %}<b style="color:{{ FOLLOWUP[r2r.followup].color }}">{{ FOLLOWUP[r2r.followup].th }}</b>{% else %}<span class="muted">รอติดตาม</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-h"><h3>ข้อค้นพบรอบที่ {{ rnd }} (NC / OBS / ข้อเสนอแนะ)</h3>
+    <div class="seg" id="ff"><button class="on" data-t="">ทั้งหมด</button><button data-t="NC">NC</button><button data-t="OBS">OBS</button><button data-t="SUG">แนะนำ</button></div></div>
+  {% set any = namespace(v=false) %}
+  {% for e in range(1,8) %}
+    {% set rows = [] %}
+    {% for n in ELEMENTS[e].nodes if n.kind == 'item' %}{% set r = res.get(n.id) %}{% if r and r.ftype and r.comment %}{% set _ = rows.append((n, r)) %}{% endif %}{% endfor %}
+    {% if rows %}{% set any.v = true %}
+    <h4 style="margin:12px 0 4px">องค์ประกอบที่ {{ e }} {{ ELEMENTS[e].title }}</h4>
+    <ul class="fl">
+      {% for n, r in rows %}
+      <li data-t="{{ r.ftype }}"><span class="ref"><a href="{{ url_for('assess', audit_id=a.id, rnd=rnd, el=e) }}#i-{{ n.id }}">{{ ITEMS[n.id].ref }}</a></span>
+        <span class="tag {{ r.ftype }}" style="flex:none">{{ FTYPES[r.ftype].short }}</span>
+        <span style="flex:1">{{ r.comment }}<br><small>{{ ITEMS[n.id].text }} · คะแนน {{ r.score or '–' }}/{{ n.max }}</small></span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  {% endfor %}
+  {% if not any.v %}<div class="empty">ยังไม่มีข้อค้นพบ</div>{% endif %}
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <div class="card-h"><h3>คณะผู้ตรวจประเมิน</h3></div>
+    {% for u in team %}<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>{{ u.full_name }}</span><span class="spacer"></span>
+      {% if u.id == a.lead_user_id %}<span class="badge amber">หัวหน้าผู้ตรวจ</span>{% endif %}
+      {% for e, v in asg.items() if v.user_id == u.id %}<span class="badge gray">องค์ {{ e }}</span>{% endfor %}</div>
+    {% else %}<div class="muted">ยังไม่ได้กำหนด</div>{% endfor %}
+  </div>
+  <div class="card">
+    <div class="card-h"><h3>ประวัติรายงาน</h3></div>
+    {% for r in reports %}
+    <div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)">
+      <span class="badge {{ 'blue' if r.round==1 else 'violet' }}">Report {{ r.round }}</span>
+      <a href="{{ url_for('report_download', report_id=r.id) }}" style="word-break:break-all;flex:1">{{ r.filename }}</a>
+      <small>{{ thai_date(r.created_at, True) }} {{ r.created_at[11:16] }} · {{ r.full_name or '' }}</small>
+    </div>
+    {% else %}<div class="muted">ยังไม่มีการสร้างรายงาน</div>{% endfor %}
+  </div>
+</div>
+
+<details class="card" style="margin-top:14px">
+  <summary style="cursor:pointer;font-weight:600">ประวัติการแก้ไข (30 รายการล่าสุด)</summary>
+  <div class="tbl-wrap" style="margin-top:10px"><table class="tbl">
+    <thead><tr><th>เวลา</th><th>ผู้ใช้</th><th>การกระทำ</th><th>รายละเอียด</th></tr></thead>
+    <tbody>{% for l in logs %}
+      <tr><td class="nowrap">{{ thai_date(l.created_at, True) }} {{ l.created_at[11:16] }}</td><td>{{ l.full_name or '-' }}</td>
+        <td class="nowrap">{{ l.action }}{% if l.item_id %} · {{ ITEMS[l.item_id].ref if l.item_id in ITEMS else l.item_id }}{% endif %}{% if l.round %} · รอบ {{ l.round }}{% endif %}</td>
+        <td style="font-size:.82rem;color:var(--ink-2)">{{ (l.detail or '')[:160] }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">ยังไม่มีประวัติ</td></tr>{% endfor %}</tbody></table></div>
+</details>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+<script>
+const r1 = {{ range(1,8)|map('string')|list|tojson }}.map(e => ({{ r1.elements|tojson }})[e].pct);
+const r2 = {{ range(1,8)|map('string')|list|tojson }}.map(e => ({{ r2.elements|tojson }})[e].pct);
+const showR2 = {{ 'true' if a.status != 'r1' else 'false' }};
+if (window.Chart) {
+  const ds = [{label: 'ครั้งที่ 1', data: r1, borderColor: '#4472c4', backgroundColor: 'rgba(68,114,196,.12)', pointRadius: 3}];
+  if (showR2) ds.push({label: 'ครั้งที่ 2', data: r2, borderColor: '#ed7d31', backgroundColor: 'rgba(237,125,49,.12)', pointRadius: 3});
+  new Chart(document.getElementById('radar'), {type: 'radar', data: {labels: ['1','2','3','4','5','6','7'], datasets: ds},
+    options: {responsive: true, maintainAspectRatio: true, scales: {r: {min: 0, max: 100, ticks: {stepSize: 25, backdropColor: 'transparent'}}},
+      plugins: {legend: {position: 'bottom', labels: {font: {family: 'Plex Thai'}}},
+        tooltip: {callbacks: {title: (i) => {{ CHECKLIST|map(attribute='title')|list|tojson }}[i[0].dataIndex]}}}}});
+}
+document.querySelectorAll('#ff button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#ff button').forEach(x => x.classList.remove('on')); b.classList.add('on');
+  document.querySelectorAll('.fl li').forEach(li => li.style.display = (!b.dataset.t || li.dataset.t === b.dataset.t) ? '' : 'none');
+});
+</script>
+{% endblock %}

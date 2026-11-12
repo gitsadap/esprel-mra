@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}ผู้ใช้งาน{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a></div><h1>ผู้ใช้งาน / คณะผู้ตรวจประเมิน</h1>
+  <div class="muted">ผู้ใช้ทุกคนเข้าสู่ระบบด้วย LDAP ของมหาวิทยาลัย — ระบบจับคู่ชื่อผู้ใช้ LDAP กับรายชื่อนี้เพื่อกำหนดบทบาท · ผู้ที่ไม่อยู่ในรายชื่อจะเข้าได้ในฐานะ “ห้องปฏิบัติการ”</div></div>
+  <div class="seg">{% for k, v in [('', 'ทั้งหมด'), ('lead','หัวหน้าผู้ตรวจ'), ('assessor','ผู้ตรวจ'), ('lab','ห้องปฏิบัติการ'), ('admin','ผู้ดูแล')] %}
+    <a href="{{ url_for('users', role=k or None) }}"><button class="{{ 'on' if (role or '') == k }}">{{ v }}</button></a>{% endfor %}</div>
+</div>
+<div class="grid g2" style="align-items:start">
+<div class="card">
+  <h3>รายชื่อ ({{ users|length }})</h3>
+  {% for u in users %}
+  <details style="border-bottom:1px solid var(--line);padding:8px 0">
+    <summary class="row" style="cursor:pointer;list-style:none"><b>{{ u.full_name }}</b><small>{{ u.username }}</small><span class="spacer"></span>
+      <small class="muted">{{ u.faculty or '' }}</small>
+      <span class="badge {{ 'amber' if u.role=='lead' else ('red' if u.role=='admin' else ('teal' if u.role=='lab' else 'gray')) }}">{{ ROLE_TH[u.role] }}</span>
+      <span class="badge gray">{{ 'LDAP' if u.auth_source == 'ldap' else 'บัญชีภายใน' }}</span>{% if not u.active %}<span class="badge gray">ปิดใช้งาน</span>{% endif %}</summary>
+    <form method="post" class="grid g2" style="gap:8px;margin-top:8px">
+      <input type="hidden" name="action" value="update"><input type="hidden" name="uid" value="{{ u.id }}">
+      <div class="field" style="margin:0"><label>ชื่อ-สกุล (แสดงในรายงาน)</label><input type="text" name="full_name" value="{{ u.full_name }}"></div>
+      <div class="field" style="margin:0"><label>บทบาท</label><select name="role">{% for k, v in ROLE_TH.items() %}<option value="{{k}}" {{ 'selected' if u.role==k }}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="field" style="margin:0"><label>คณะ/หน่วยงาน (ใช้กันผลประโยชน์ทับซ้อน)</label><input type="text" name="faculty" value="{{ u.faculty or '' }}"></div>
+      <div class="field" style="margin:0"><label>อีเมล</label><input type="text" name="email" value="{{ u.email or '' }}"></div>
+      <div class="field" style="margin:0"><label>รหัสผ่านภายในระบบ (เว้นว่าง = ใช้ LDAP)</label><input type="password" name="password" autocomplete="new-password"></div>
+      <label class="row" style="gap:6px;align-self:end"><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }} style="width:20px;height:20px"> เปิดใช้งาน</label>
+      <div><button class="btn sm primary">บันทึก</button>{% if u.last_login %} <small class="muted">เข้าล่าสุด {{ thai_date(u.last_login, True) }}</small>{% endif %}</div>
+    </form>
+  </details>
+  {% endfor %}
+</div>
+<form method="post" class="card">
+  <h3>เพิ่มผู้ตรวจ / ทีมงาน</h3>
+  <input type="hidden" name="action" value="add">
+  <div class="field"><label>ชื่อผู้ใช้ LDAP ของมหาวิทยาลัย *</label><input type="text" name="username" required autocapitalize="off" placeholder="เช่น somchaij"></div>
+  <div class="field"><label>ชื่อ-สกุล (แสดงในรายงาน)</label><input type="text" name="full_name" placeholder="ระบบจะดึงจาก LDAP เมื่อเข้าสู่ระบบครั้งแรก"></div>
+  <div class="field"><label>คณะ/หน่วยงาน</label><input type="text" name="faculty"></div>
+  <div class="field"><label>อีเมล</label><input type="text" name="email"></div>
+  <div class="field"><label>บทบาท</label><select name="role"><option value="assessor">ผู้ตรวจประเมิน</option><option value="lead">หัวหน้าผู้ตรวจประเมิน</option><option value="lab">ห้องปฏิบัติการ</option>{% if g.user.role=='admin' %}<option value="admin">ผู้ดูแลระบบ</option>{% endif %}</select></div>
+  <div class="field"><label>รหัสผ่านภายในระบบ (ไม่บังคับ)</label><input type="password" name="password" autocomplete="new-password" placeholder="เว้นว่างเพื่อใช้ LDAP"></div>
+  <button class="btn primary">+ เพิ่มผู้ใช้</button>
+  <p class="hint">หัวหน้าผู้ตรวจ: อนุมัติใบสมัคร จัดทีม สร้าง Report เริ่มรอบ 2 · ผู้ตรวจ: ให้คะแนน บันทึก NC/OBS ถ่ายรูปหลักฐาน · ห้องปฏิบัติการ: ลงทะเบียนห้อง ดูผล ตอบ CAPA</p>
+</form>
+</div>
+{% endblock %}

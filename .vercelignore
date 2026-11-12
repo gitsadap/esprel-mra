@@ -1,0 +1,6 @@
+tests/
+scripts/
+.github/
+instance/
+*.md
+requirements-dev.txt

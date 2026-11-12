@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}ภาพรวม{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb">ESPReL MRA · มหาวิทยาลัยนเรศวร</div>
+    <h1>ภาพรวมการตรวจประเมินห้องปฏิบัติการ</h1>
+  </div>
+  <div class="row">
+    <form method="get" class="row" style="gap:6px">
+      <select name="year" onchange="this.form.submit()" style="min-width:140px">
+        <option value="">ทุกปี</option>
+        {% for y in years %}<option value="{{y}}" {{ 'selected' if year==y }}>ปี {{ y }}</option>{% endfor %}
+      </select>
+    </form>
+    {% if is_lead() %}
+    <a class="btn" href="{{ url_for('import_xlsx') }}">⇪ นำเข้า Excel</a>
+    <a class="btn brand" href="{{ url_for('audit_new') }}">+ เพิ่มการตรวจประเมิน</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card kpi"><div class="k-label">ห้องปฏิบัติการทั้งหมด</div><div class="k-val tnum">{{ stats.labs }}</div>
+    <div class="k-sub">กำลังตรวจ {{ stats.status.r1 + stats.status.r2 }} · รอ CAPA {{ stats.status.r1_reported }} · พร้อมรอบ 2 {{ stats.status.capa_submitted }}</div></div>
+  <div class="card kpi"><div class="k-label">ตรวจเสร็จสิ้น (ออก Report 2)</div><div class="k-val tnum lv-good">{{ stats.done }}</div>
+    <div class="k-sub">จาก {{ stats.labs }} ห้อง</div></div>
+  <div class="card kpi"><div class="k-label">คะแนนเฉลี่ย (รอบล่าสุด)</div><div class="k-val tnum lv-{{ level_of(stats.avg) }}">{{ stats.avg }}%</div>
+    <div class="k-sub">เฉลี่ยจากห้องที่มีผลการตรวจ</div></div>
+  <div class="card kpi"><div class="k-label">NC ที่ยังไม่ปิด</div><div class="k-val tnum {{ 'lv-bad' if stats.nc_open else 'lv-good' }}">{{ stats.nc_open }}</div>
+    <div class="k-sub">ข้อบกพร่องที่ต้องติดตาม</div></div>
+</div>
+
+{% if is_lead() and pending %}
+<a class="card" href="{{ url_for('planning') }}" style="display:flex;gap:12px;align-items:center;margin-bottom:14px;border-left:5px solid var(--warn);color:inherit;text-decoration:none">
+  <span style="font-size:1.6rem">📝</span>
+  <div style="flex:1"><b>มีใบสมัครเข้ารับการตรวจ {{ pending }} รายการ</b> รออนุมัติหรือรอจัดทีมผู้ตรวจ<br><small class="muted">กดเพื่อจัดทีมผู้ตรวจอัตโนมัติตามจำนวนห้องที่สมัครในปีนี้</small></div>
+  <span class="btn sm">ใบสมัคร & จัดทีม →</span>
+</a>
+{% endif %}
+
+{% if mine %}
+<div class="card" style="margin-bottom:14px">
+  <div class="card-h"><h3>งานตรวจของฉัน</h3><span class="muted">องค์ประกอบที่ได้รับมอบหมาย</span></div>
+  <div class="row">
+  {% for m in mine %}
+    {% for e in m.my_elements %}
+    <a class="btn sm" href="{{ url_for('assess', audit_id=m.a.id, rnd=m.rnd, el=e) }}">{{ m.a.lab_name }} · องค์ {{ e }} · รอบ {{ m.rnd }}</a>
+    {% endfor %}
+  {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="toolbar">
+  <input type="search" id="q" placeholder="ค้นหาห้องปฏิบัติการ / ESPReL no. / สังกัด" oninput="filterLabs()">
+  <div class="seg" id="fstatus">
+    <button class="on" data-s="">ทั้งหมด</button>
+    <button data-s="r1">รอบ 1</button>
+    <button data-s="r1_reported">รอ CAPA</button>
+    <button data-s="capa_submitted">พร้อมรอบ 2</button>
+    <button data-s="r2">รอบ 2</button>
+    <button data-s="r2_reported">เสร็จสิ้น</button>
+  </div>
+</div>
+
+{% if not audits %}
+<div class="card empty">
+  <h2>ยังไม่มีรายการตรวจประเมิน</h2>
+  <p>เริ่มต้นโดยเพิ่มห้องปฏิบัติการใหม่ หรือนำเข้าไฟล์ Excel แบบประเมินเดิม</p>
+  {% if is_lead() %}<a class="btn brand" href="{{ url_for('audit_new') }}">+ เพิ่มการตรวจประเมิน</a>{% endif %}
+</div>
+{% endif %}
+
+<div class="grid g3" id="labs">
+{% for x in audits %}
+  {% set a = x.a %}
+  <a class="card lab-card" href="{{ url_for('audit_view', audit_id=a.id) }}" data-s="{{ a.status }}"
+     data-q="{{ (a.lab_name ~ ' ' ~ (a.espre_no or '') ~ ' ' ~ (a.affiliation or ''))|lower }}">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div style="min-width:0">
+        <div class="title">{{ a.lab_name }}</div>
+        <div class="muted" style="font-size:.82rem">{{ a.espre_no or '—' }} · ปี {{ a.year_be }}</div>
+      </div>
+      <span class="badge {{ STATUS_TH[a.status][1] }}">{{ STATUS_TH[a.status][0] }}</span>
+    </div>
+    <div class="muted" style="font-size:.84rem;line-height:1.35">{{ a.affiliation or '' }}</div>
+    <div class="mini-els" title="ร้อยละคะแนนรายองค์ประกอบ (รอบ {{ x.rnd }})">
+      {% for e in range(1,8) %}{% set es = x.cur.elements[e] %}
+        <div class="{{ 'lv-bg-' ~ level_of(es.pct) if es.answered else 'lv-bg-none' }}">{{ e }}</div>
+      {% endfor %}
+    </div>
+    <div class="row" style="justify-content:space-between;font-size:.88rem">
+      <span>รอบ 1: <b class="tnum">{{ x.r1.total.pct if x.r1.total.answered else '–' }}{{ '%' if x.r1.total.answered }}</b></span>
+      <span>รอบ 2: <b class="tnum">{{ x.r2.total.pct if x.r2.total.answered else '–' }}{{ '%' if x.r2.total.answered }}</b></span>
+      <span>NC ค้าง: <b class="{{ 'lv-bad' if x.nc_open else 'lv-good' }}">{{ x.nc_open }}</b></span>
+    </div>
+    {% if a.status in ('r1','r2') %}
+    <div>
+      <div class="row" style="justify-content:space-between;font-size:.78rem" class="muted"><span class="muted">ความคืบหน้ารอบ {{ x.rnd }}</span><span class="muted">{{ x.done }}/7 องค์ประกอบ · {{ x.cur.total.progress }}%</span></div>
+      <div class="bar"><i style="width:{{ x.cur.total.progress }}%"></i></div>
+    </div>
+    {% endif %}
+  </a>
+{% endfor %}
+</div>
+
+{% if audits %}
+<div class="card" style="margin-top:16px">
+  <div class="card-h"><h3>ตารางสรุปคะแนนทุกห้องปฏิบัติการ (% รอบล่าสุด)</h3></div>
+  <div class="tbl-wrap">
+  <table class="tbl">
+    <thead><tr><th>ห้องปฏิบัติการ</th><th>สถานะ</th>{% for e in range(1,8) %}<th class="num" title="{{ ELEMENTS[e].title }}">องค์ {{e}}</th>{% endfor %}<th class="num">รวม</th><th class="num">NC ค้าง</th></tr></thead>
+    <tbody>
+    {% for x in audits %}
+      <tr><td><a href="{{ url_for('audit_view', audit_id=x.a.id) }}">{{ x.a.lab_name }}</a><br><small>{{ x.a.espre_no or '' }}</small></td>
+        <td><span class="badge {{ STATUS_TH[x.a.status][1] }}">รอบ {{ x.rnd }}</span></td>
+        {% for e in range(1,8) %}{% set es = x.cur.elements[e] %}
+        <td class="num lv-{{ level_of(es.pct) if es.answered else '' }}">{{ es.pct if es.answered else '–' }}</td>{% endfor %}
+        <td class="num"><b>{{ x.cur.total.pct if x.cur.total.answered else '–' }}</b></td>
+        <td class="num {{ 'lv-bad' if x.nc_open }}">{{ x.nc_open }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+let fs = '';
+document.querySelectorAll('#fstatus button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#fstatus button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); fs = b.dataset.s; filterLabs();
+});
+function filterLabs() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  document.querySelectorAll('#labs .lab-card').forEach(c => {
+    const ok = (!q || c.dataset.q.includes(q)) && (!fs || c.dataset.s === fs);
+    c.style.display = ok ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

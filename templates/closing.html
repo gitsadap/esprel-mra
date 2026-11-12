@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}ประชุมปิด รอบ {{ rnd }} · {{ a.lab_name }}{% endblock %}
+{% block bodyclass %}present{% endblock %}
+{% block topbar %}{% endblock %}
+{% block head %}
+<style>
+@media print{ body.present{background:#fff} .cm-top,.cm-nav{display:none!important} .slide{display:block!important;box-shadow:none;min-height:0;page-break-after:always;border:1px solid #ddd} }
+</style>
+{% endblock %}
+{% block body %}
+{% set S = r2 if rnd == 2 else r1 %}
+{% set R = resp[rnd] %}
+<div class="cm">
+  <div class="cm-top">
+    <a class="btn sm" href="{{ url_for('audit_view', audit_id=a.id, round=rnd) }}" style="background:#1e293b;color:#fff;border-color:#334155">← กลับ</a>
+    <span class="t">สรุปผลการตรวจประเมินเพื่อการประชุมปิด · ครั้งที่ {{ rnd }}</span>
+    <span>{{ a.lab_name }}</span>
+    <span class="spacer"></span>
+    <button class="btn sm" onclick="fs()" style="background:#1e293b;color:#fff;border-color:#334155">⛶ เต็มจอ</button>
+    <button class="btn sm" onclick="window.print()" style="background:#1e293b;color:#fff;border-color:#334155">🖨 พิมพ์</button>
+  </div>
+  <div class="cm-tabs" id="tabs">
+    <button data-i="0" class="on">ภาพรวม</button>
+    {% for e in range(1,8) %}<button data-i="{{e}}">{{e}}. {{ ELEMENTS[e].short }}{% if S.elements[e].NC %} · <b>{{ S.elements[e].NC }} NC</b>{% endif %}</button>{% endfor %}
+    <button data-i="8">สรุป & ขั้นตอนถัดไป</button>
+  </div>
+  <div style="height:10px"></div>
+
+  {# ---------------- overview ---------------- #}
+  <section class="slide on" data-i="0">
+    <div class="s-head">
+      <div class="s-no" style="background:#14213d">ES</div>
+      <div><div class="muted">สรุปผลตรวจประเมินความปลอดภัยห้องปฏิบัติการตามมาตรฐาน ESPReL Checklist · ครั้งที่ {{ rnd }} ประจำปี {{ a.year_be }}</div>
+        <div class="s-title">{{ a.lab_name }}</div>
+        <div class="muted">ESPReL no. {{ a.espre_no or '—' }} · {{ a.affiliation or '' }} · วันที่ตรวจ {{ thai_date(a['r%d_date'|format(rnd)]) }}</div></div>
+    </div>
+    <div class="grid g2" style="align-items:start">
+      <div>
+        <div class="big-score">
+          <div class="ring" style="--p:{{ S.total.pct }};--c:var(--{{ level_of(S.total.pct) }})"><span>{{ S.total.pct }}%</span></div>
+          <div class="cmp">
+            <div class="box"><div class="l">คะแนนรวม</div><div class="v tnum">{{ S.total.got }}/{{ S.total.max }}</div></div>
+            {% if rnd == 2 %}<div class="box"><div class="l">ครั้งที่ 1 → ครั้งที่ 2</div><div class="v tnum">{{ r1.total.pct }}% → {{ r2.total.pct }}%</div></div>{% endif %}
+          </div>
+        </div>
+        <div class="cmp" style="margin-top:14px">
+          <div class="box"><div class="l">ข้อบกพร่อง (NC)</div><div class="v" style="color:var(--nc)">{{ S.total.NC }}</div></div>
+          <div class="box"><div class="l">ข้อสังเกต (OBS)</div><div class="v" style="color:var(--obs)">{{ S.total.OBS }}</div></div>
+          <div class="box"><div class="l">ข้อเสนอแนะ</div><div class="v" style="color:var(--sug)">{{ S.total.SUG }}</div></div>
+        </div>
+        <div class="tbl-wrap" style="margin-top:14px"><table class="tbl">
+          <thead><tr><th>องค์ประกอบ</th>{% if rnd==2 %}<th class="num">ครั้งที่ 1</th>{% endif %}<th class="num">คะแนน</th><th class="num">%</th><th>ข้อค้นพบ</th></tr></thead>
+          <tbody>
+          {% for e in range(1,8) %}{% set es = S.elements[e] %}
+            <tr onclick="go({{e}})" style="cursor:pointer"><td>{{e}}. {{ ELEMENTS[e].short }}</td>
+              {% if rnd==2 %}<td class="num muted">{{ r1.elements[e].pct }}</td>{% endif %}
+              <td class="num">{{ es.got }}/{{ es.max }}</td><td class="num lv-{{ level_of(es.pct) }}"><b>{{ es.pct }}</b></td>
+              <td>{% if es.NC %}<span class="tag NC">NC {{ es.NC }}</span> {% endif %}{% if es.OBS %}<span class="tag OBS">OBS {{ es.OBS }}</span> {% endif %}{% if es.SUG %}<span class="tag SUG">แนะนำ {{ es.SUG }}</span>{% endif %}{% if not (es.NC or es.OBS or es.SUG) %}<span class="muted">–</span>{% endif %}</td></tr>
+          {% endfor %}
+            <tr class="total"><td>รวม</td>{% if rnd==2 %}<td class="num">{{ r1.total.pct }}</td>{% endif %}<td class="num">{{ S.total.got }}/{{ S.total.max }}</td><td class="num">{{ S.total.pct }}</td><td></td></tr>
+          </tbody></table></div>
+      </div>
+      <div>
+        <div style="max-width:440px;margin:0 auto"><canvas id="radar"></canvas></div>
+        <div class="muted" style="font-size:.85rem;margin-top:8px">คณะผู้ตรวจ: {% for u in team %}{{ u.full_name }}{{ ', ' if not loop.last }}{% endfor %}</div>
+      </div>
+    </div>
+  </section>
+
+  {# ---------------- per element ---------------- #}
+  {% for e in range(1,8) %}{% set es = S.elements[e] %}{% set E = ELEMENTS[e] %}
+  <section class="slide" data-i="{{e}}">
+    <div class="s-head">
+      <div class="s-no">{{ e }}</div>
+      <div style="flex:1;min-width:0"><div class="muted">องค์ประกอบที่ {{ e }}{% if asg.get(e) %} · ผู้ตรวจ: {{ asg[e].full_name }}{% endif %}</div>
+        <div class="s-title">{{ E.title }}</div></div>
+      <div class="big-score">
+        <div class="ring" style="--p:{{ es.pct }};--c:var(--{{ level_of(es.pct) }})"><span>{{ es.pct }}%</span></div>
+      </div>
+    </div>
+    <div class="cmp" style="margin-bottom:14px">
+      <div class="box"><div class="l">คะแนนที่ได้ / คะแนนเต็ม</div><div class="v tnum">{{ es.got }}/{{ es.max }}</div></div>
+      {% if rnd == 2 %}<div class="box"><div class="l">ครั้งที่ 1 → ครั้งที่ 2</div><div class="v tnum">{{ r1.elements[e].pct }}% → {{ es.pct }}%</div></div>{% endif %}
+      <div class="box"><div class="l">NC / OBS / แนะนำ</div><div class="v"><span style="color:var(--nc)">{{ es.NC }}</span> / <span style="color:var(--obs)">{{ es.OBS }}</span> / <span style="color:var(--sug)">{{ es.SUG }}</span></div></div>
+      {% if es.na %}<div class="box"><div class="l">ไม่เกี่ยวข้อง (NA)</div><div class="v">{{ es.na }} ข้อ</div></div>{% endif %}
+    </div>
+    <div class="grid g2" style="align-items:start">
+      <div>
+        <h3>คะแนนตามหัวข้อ</h3>
+        <div class="sec-bars">
+        {% for code, sc in es.sections.items() %}
+          <div class="sb"><span>{{ code }} {{ sc.title }}</span>
+            <div class="bar {{ level_of(sc.pct) }}"><i style="width:{{ sc.pct }}%"></i></div>
+            <span class="tnum num" style="text-align:right">{{ sc.got }}/{{ sc.max }}</span></div>
+        {% endfor %}
+        </div>
+        {% set lostnf = [] %}
+        {% for l in es.lost %}{% set r = R.get(l.id) %}{% if not (r and r.comment) %}{% set _ = lostnf.append(l) %}{% endif %}{% endfor %}
+        {% if lostnf %}
+        <h3 style="margin-top:16px">ข้อที่ไม่ได้คะแนนเต็ม (ไม่มีบันทึกข้อค้นพบ)</h3>
+        <ul class="fl">{% for l in lostnf %}<li><span class="ref">{{ ITEMS[l.id].ref }}</span><span style="flex:1">{{ ITEMS[l.id].text }}</span><b class="tnum">{{ l.got }}/{{ l.max }}</b></li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+      <div>
+        <h3>ข้อค้นพบ{% if rnd==2 %}ครั้งที่ 2{% endif %}</h3>
+        {% set fl = [] %}
+        {% for t in ('NC','OBS','SUG') %}{% for n in E.nodes if n.kind=='item' %}{% set r = R.get(n.id) %}{% if r and r.ftype == t and r.comment %}{% set _ = fl.append((n, r)) %}{% endif %}{% endfor %}{% endfor %}
+        {% if fl %}
+        <ul class="fl">
+          {% for n, r in fl %}
+          <li><span class="tag {{ r.ftype }}" style="flex:none;margin-top:3px">{{ FTYPES[r.ftype].short }}</span>
+            <span class="ref">{{ ITEMS[n.id].ref }}</span>
+            <span style="flex:1">{{ r.comment }}<br><small>{{ ITEMS[n.id].text }} · {{ r.score or '–' }}/{{ n.max }}</small></span></li>
+          {% endfor %}
+        </ul>
+        {% else %}<div class="empty" style="padding:20px">✓ ไม่มีข้อเสนอแนะ</div>{% endif %}
+
+        {% if rnd == 2 %}
+        {% set fu = [] %}
+        {% for n in E.nodes if n.kind=='item' %}{% set r1r = resp[1].get(n.id) %}{% if r1r and r1r.ftype in ('NC','OBS') %}{% set _ = fu.append((n, r1r, resp[2].get(n.id))) %}{% endif %}{% endfor %}
+        {% if fu %}
+        <h3 style="margin-top:16px">ติดตามผลการแก้ไขจากครั้งที่ 1</h3>
+        <ul class="fl">
+          {% for n, x1, x2 in fu %}
+          <li><span class="ref">{{ ITEMS[n.id].ref }}</span>
+            <span style="flex:1"><span class="tag {{ x1.ftype }}">{{ FTYPES[x1.ftype].short }}</span> {{ x1.comment }}
+              {% if x2 and x2.fnote %}<br><small>ผลการแก้ไข: {{ x2.fnote }}</small>{% endif %}</span>
+            {% if x2 and x2.followup %}<b style="color:{{ FOLLOWUP[x2.followup].color }};white-space:nowrap">{{ FOLLOWUP[x2.followup].th }}</b>{% else %}<span class="muted nowrap">รอติดตาม</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% endif %}
+
+        <div class="note-area" style="margin-top:14px">
+          <h3>สรุปภาพรวม / ประเด็นแจ้งในที่ประชุม</h3>
+          <textarea data-sum="{{ e }}" placeholder="บันทึกสรุปองค์ประกอบนี้ (บันทึกอัตโนมัติ)">{{ st[e].summary if st.get(e) and st[e].summary else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+
+  {# ---------------- wrap up ---------------- #}
+  <section class="slide" data-i="8">
+    <div class="s-head"><div class="s-no" style="background:var(--good)">✓</div>
+      <div><div class="muted">สรุปการตรวจประเมินครั้งที่ {{ rnd }}</div><div class="s-title">สรุปผลและขั้นตอนถัดไป</div></div></div>
+    <div class="grid g2" style="align-items:start">
+      <div>
+        <div class="cmp">
+          <div class="box"><div class="l">คะแนนรวม</div><div class="v lv-{{ level_of(S.total.pct) }}">{{ S.total.pct }}%</div></div>
+          <div class="box"><div class="l">NC ที่ต้องแก้ไข</div><div class="v" style="color:var(--nc)">{{ S.total.NC }}</div></div>
+          <div class="box"><div class="l">OBS</div><div class="v" style="color:var(--obs)">{{ S.total.OBS }}</div></div>
+        </div>
+        <h3 style="margin-top:16px">องค์ประกอบที่ต้องปรับปรุง</h3>
+        <ul class="fl">
+        {% for e in range(1,8) %}{% set es = S.elements[e] %}{% if es.NC or es.OBS or es.pct < 100 %}
+          <li><span class="ref">องค์ {{ e }}</span><span style="flex:1">{{ ELEMENTS[e].title }}</span><b class="lv-{{ level_of(es.pct) }}">{{ es.pct }}%</b></li>
+        {% endif %}{% endfor %}
+        </ul>
+      </div>
+      <div>
+        <h3>ขั้นตอนถัดไป</h3>
+        {% if rnd == 1 %}
+        <ol style="line-height:1.9;padding-left:20px">
+          <li>หัวหน้าผู้ตรวจออก <b>Report 1</b> (สรุปผลและรายงานข้อบกพร่อง/ข้อสังเกตและข้อเสนอแนะ)</li>
+          <li>ห้องปฏิบัติการจัดทำแผนยกระดับความปลอดภัยฯ และแก้ไข NC/OBS{% if a.deadline %} ส่งภายใน <b>{{ thai_date(a.deadline) }}</b>{% endif %}</li>
+          <li>คณะผู้ตรวจเข้าตรวจติดตาม <b>ครั้งที่ 2</b>{% if a.r2_date %} วันที่ <b>{{ thai_date(a.r2_date) }}</b>{% endif %}</li>
+          <li>ออก <b>Report 2</b> สรุปผลการยกระดับ</li>
+        </ol>
+        {% else %}
+        <ol style="line-height:1.9;padding-left:20px">
+          <li>หัวหน้าผู้ตรวจออก <b>Report 2</b> สรุปผลการตรวจติดตาม</li>
+          <li>ห้องปฏิบัติการรักษามาตรฐานและดำเนินการตามข้อเสนอแนะที่เหลือ</li>
+        </ol>
+        {% endif %}
+        <div class="row" style="margin-top:16px">
+          <a class="btn" href="{{ url_for('report_view', audit_id=a.id, rnd=rnd) }}">👁 ดูตัวอย่างรายงาน</a>
+          {% if is_lead() and ((rnd==1 and a.status=='r1') or (rnd==2 and a.status=='r2')) %}
+          <form method="post" action="{{ url_for('make_report', audit_id=a.id, rnd=rnd) }}" data-confirm="สร้าง Report {{ rnd }} และปิดการแก้ไขรอบนี้?">
+            <button class="btn brand">📄 สร้าง Report {{ rnd }}</button></form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="cm-nav">
+  <button class="btn" onclick="go(cur-1)">← ก่อนหน้า</button>
+  <span class="counter" id="counter">1 / 9</span>
+  <button class="btn" onclick="go(cur+1)">ถัดไป →</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+<script>
+let cur = 0; const N = 9;
+const slides = document.querySelectorAll('.slide'), tabs = document.querySelectorAll('#tabs button');
+function go(i) {
+  cur = Math.max(0, Math.min(N - 1, i));
+  slides.forEach(s => s.classList.toggle('on', +s.dataset.i === cur));
+  tabs.forEach(t => t.classList.toggle('on', +t.dataset.i === cur));
+  document.getElementById('counter').textContent = (cur + 1) + ' / ' + N;
+  tabs[cur].scrollIntoView({inline: 'center', block: 'nearest'});
+  history.replaceState(null, '', '#s' + cur);
+  window.scrollTo({top: 0});
+}
+tabs.forEach(t => t.onclick = () => go(+t.dataset.i));
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') go(cur + 1);
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(cur - 1);
+});
+let sx = null;
+document.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, {passive: true});
+document.addEventListener('touchend', e => {
+  if (sx === null || e.target.closest('.tbl-wrap,.cm-tabs,textarea')) return;
+  const dx = e.changedTouches[0].clientX - sx; sx = null;
+  if (Math.abs(dx) > 80) go(cur + (dx < 0 ? 1 : -1));
+});
+function fs() { const d = document.documentElement; (d.requestFullscreen || d.webkitRequestFullscreen || (() => {})).call(d); }
+if (location.hash.startsWith('#s')) go(+location.hash.slice(2));
+if (window.Chart) {
+  const r1 = {{ range(1,8)|map('string')|list|tojson }}.map(e => ({{ r1.elements|tojson }})[e].pct);
+  const r2 = {{ range(1,8)|map('string')|list|tojson }}.map(e => ({{ r2.elements|tojson }})[e].pct);
+  const ds = [{label: 'ครั้งที่ 1', data: r1, borderColor: '#4472c4', backgroundColor: 'rgba(68,114,196,.12)'}];
+  if ({{ rnd }} === 2) ds.push({label: 'ครั้งที่ 2', data: r2, borderColor: '#ed7d31', backgroundColor: 'rgba(237,125,49,.12)'});
+  new Chart(document.getElementById('radar'), {type: 'radar', data: {labels: {{ CHECKLIST|map(attribute='short')|list|tojson }}, datasets: ds},
+    options: {scales: {r: {min: 0, max: 100, ticks: {stepSize: 25, backdropColor: 'transparent'}, pointLabels: {font: {size: 12, family: 'Plex Thai'}}}},
+      plugins: {legend: {position: 'bottom'}}}});
+}
+const sumUrl = {{ url_for('api_el_summary', audit_id=a.id, rnd=rnd, el=0)|tojson }};
+document.querySelectorAll('textarea[data-sum]').forEach(t => {
+  let tm; t.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() =>
+    postJSON(sumUrl.replace(/\/element\/0\//, '/element/' + t.dataset.sum + '/'), {summary: t.value}).catch(e => toast(e.message, 'error')), 700); });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ 'แก้ไขข้อมูลการตรวจ' if audit else 'เพิ่มการตรวจประเมิน' }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a>{% if audit %} / <a href="{{ url_for('audit_view', audit_id=audit.id) }}">{{ audit.lab_name }}</a>{% endif %}</div>
+    <h1>{{ 'แก้ไขข้อมูลการตรวจประเมิน' if audit else 'เพิ่มการตรวจประเมินห้องปฏิบัติการ' }}</h1>
+  </div>
+</div>
+<form method="post">
+<div class="grid g2">
+  <div class="card">
+    <h3>ข้อมูลห้องปฏิบัติการ</h3>
+    {% if not audit and labs %}
+    <div class="field"><label>เลือกห้องที่ลงทะเบียนแล้ว (หรือกรอกห้องใหม่ด้านล่าง)</label>
+      <select name="lab_id" id="labpick"><option value="">— ห้องใหม่ —</option>
+        {% for l in labs %}<option value="{{ l.id }}" data-l='{{ {"name": l.name, "espre_no": l.espre_no or "", "faculty": l.faculty or "", "affiliation": l.affiliation or "", "location": l.location or "", "head_name": l.head_name or "", "contact": l.contact or ""}|tojson }}'>{{ l.name }}{% if l.espre_no %} · {{ l.espre_no }}{% endif %}</option>{% endfor %}
+      </select></div>
+    {% endif %}
+    <div class="field"><label>1) ชื่อห้องปฏิบัติการ *</label><input type="text" name="lab_name" required value="{{ audit.lab_name if audit else '' }}" placeholder="เช่น ห้องปฏิบัติการกลาง AG 2312"></div>
+    <div class="field"><label>2) เลขทะเบียนห้องปฏิบัติการ (ESPReL no.)</label><input type="text" name="espre_no" value="{{ audit.espre_no or '' if audit else '' }}" placeholder="เช่น 2-0100-0163-0"></div>
+    <div class="field"><label>คณะ / หน่วยงาน (ใช้กันผลประโยชน์ทับซ้อน)</label><input type="text" name="faculty" value="{{ audit.faculty or '' if audit else '' }}"></div>
+    <div class="field"><label>3) สังกัด (ข้อความในรายงาน)</label><input type="text" name="affiliation" value="{{ audit.affiliation or '' if audit else '' }}" placeholder="คณะ/หน่วยงาน มหาวิทยาลัยนเรศวร"></div>
+    <div class="grid g2" style="gap:10px">
+      <div class="field"><label>อาคาร/ที่ตั้ง</label><input type="text" name="location" value="{{ audit.location or '' if audit else '' }}"></div>
+      <div class="field"><label>หัวหน้าห้องปฏิบัติการ</label><input type="text" name="head_name" value="{{ audit.head_name or '' if audit else '' }}"></div>
+    </div>
+    <div class="field"><label>ผู้ประสานงาน / ติดต่อ</label><input type="text" name="contact" value="{{ audit.contact or '' if audit else '' }}" placeholder="ชื่อ เบอร์โทร อีเมล"></div>
+    <div class="field"><label>บัญชีผู้ใช้ของห้องปฏิบัติการ (ชื่อผู้ใช้ LDAP) — ให้ห้องเข้าดูผลและตอบ CAPA</label>
+      <input type="text" name="lab_username" autocapitalize="off" placeholder="เช่น labhead01">
+      {% if lab_users %}<span class="hint">ผูกแล้ว: {% for u in lab_users %}{{ u.full_name }} ({{ u.username }}){{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}</div>
+  </div>
+  <div class="card">
+    <h3>กำหนดการตรวจ</h3>
+    <div class="grid g2" style="gap:10px">
+      <div class="field"><label>วันที่ตรวจครั้งที่ 1</label><input type="date" name="r1_date" value="{{ audit.r1_date or '' if audit else '' }}"></div>
+      <div class="field"><label>วันที่ตรวจครั้งที่ 2</label><input type="date" name="r2_date" value="{{ audit.r2_date or '' if audit else '' }}"></div>
+      <div class="field"><label>ปีงบประมาณ/ปี (พ.ศ.)</label><input type="number" name="year_be" value="{{ audit.year_be if audit else '' }}" placeholder="คำนวณจากวันที่ตรวจ"></div>
+      <div class="field"><label>กำหนดส่ง CAPA</label><input type="date" name="deadline" value="{{ audit.deadline or '' if audit else '' }}"></div>
+      {% if audit %}
+      <div class="field"><label>วันที่ลงในรายงานครั้งที่ 1</label><input type="date" name="r1_report_date" value="{{ audit.r1_report_date or '' }}"></div>
+      <div class="field"><label>วันที่ลงในรายงานครั้งที่ 2</label><input type="date" name="r2_report_date" value="{{ audit.r2_report_date or '' }}"></div>
+      {% endif %}
+    </div>
+    <div class="field"><label>บันทึกเพิ่มเติม</label><textarea name="notes">{{ audit.notes or '' if audit else '' }}</textarea></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3>คณะผู้ตรวจประเมิน และการมอบหมายองค์ประกอบ</h3>
+  <p class="hint" style="margin-top:0">แยกผู้ตรวจรับผิดชอบรายองค์ประกอบได้ เพื่อให้แต่ละคนเปิดตรวจพร้อมกันบนอุปกรณ์ของตนเอง (ผู้ตรวจทุกคนในทีมยังเข้าดู/ช่วยกรอกองค์ประกอบอื่นได้)</p>
+  <div class="grid g2">
+    <div>
+      <div class="field"><label>หัวหน้าผู้ตรวจประเมิน</label>
+        <select name="lead_user_id">
+          {% for u in users if u.role in ('lead','admin') %}
+          <option value="{{u.id}}" {{ 'selected' if (audit and audit.lead_user_id==u.id) or (not audit and g.user.id==u.id) }}>{{ u.full_name }}</option>
+          {% endfor %}
+        </select></div>
+      <label>สมาชิกคณะผู้ตรวจ</label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:260px;overflow:auto">
+        {% for u in users %}
+        <label class="row" style="gap:8px;font-weight:400;padding:6px 8px;border:1px solid var(--line);border-radius:10px">
+          <input type="checkbox" name="team" value="{{u.id}}" {{ 'checked' if u.id in team_ids }} style="width:20px;height:20px"> {{ u.full_name }} <small>({{ u.username }})</small>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      {% for e in range(1,8) %}
+      <div class="field" style="margin-bottom:8px"><label>องค์ประกอบที่ {{e}} · {{ ELEMENTS[e].short }}</label>
+        <select name="assign_{{e}}">
+          <option value="">— ไม่ระบุ —</option>
+          {% for u in users %}<option value="{{u.id}}" {{ 'selected' if asg.get(e) and asg[e].user_id==u.id }}>{{ u.full_name }}</option>{% endfor %}
+        </select></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:14px;justify-content:flex-end">
+  <a class="btn" href="{{ url_for('audit_view', audit_id=audit.id) if audit else url_for('dashboard') }}">ยกเลิก</a>
+  <button class="btn primary" type="submit">บันทึก</button>
+</div>
+</form>
+{% if audit %}
+<form method="post" action="{{ url_for('audit_delete', audit_id=audit.id) }}" style="margin-top:30px"
+      data-confirm="ข้อมูลผลการตรวจทั้ง 2 รอบของห้องนี้จะถูกลบถาวร" data-confirm-title="ลบรายการตรวจประเมิน?" data-ok-label="ลบถาวร" data-ok-cls="danger">
+  <button class="btn danger sm" type="submit">ลบรายการตรวจประเมินนี้</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const lp = document.getElementById('labpick');
+lp && lp.addEventListener('change', () => {
+  const o = lp.selectedOptions[0]; if (!o.dataset.l) return;
+  const d = JSON.parse(o.dataset.l);
+  Object.entries(d).forEach(([k, v]) => { const i = document.querySelector(`[name=${k === 'name' ? 'lab_name' : k}]`); if (i) i.value = v; });
+});
+</script>
+{% endblock %}

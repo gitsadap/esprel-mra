@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check --select E9,F63,F7,F82,F401,F841 .
+      - name: Tests (SQLite)
+        run: pytest -q
+      - name: Tests (Postgres — เหมือน Supabase)
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: pytest -q
+# การ deploy: เชื่อม GitHub repo กับ Vercel (Import Project) — Vercel จะ deploy อัตโนมัติ
+#  - push/PR ทุกครั้ง → Preview deployment
+#  - merge เข้า main → Production
+# ตั้ง Branch protection ให้ main ต้องผ่าน CI ก่อน merge

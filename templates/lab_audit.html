@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}ผลการตรวจ · {{ a.lab_name }}{% endblock %}
+{% block content %}
+{% set show2 = a.status == 'r2_reported' %}
+<div class="page-head">
+  <div style="min-width:0">
+    <div class="crumb"><a href="{{ url_for('lab_home', **({'as':'lab'} if is_staff() else {})) }}">ห้องปฏิบัติการของฉัน</a>{% if is_staff() %} · <a href="{{ url_for('audit_view', audit_id=a.id) }}">หน้าผู้ตรวจ</a>{% endif %}</div>
+    <h1 style="margin-bottom:4px">{{ a.lab_name }}</h1>
+    <div class="muted" style="font-size:.9rem">การตรวจประเมิน ESPReL ปี {{ a.year_be }} · ESPReL no. {{ a.espre_no or '—' }}</div>
+  </div>
+  <div class="row">
+    <span class="badge {{ STATUS_TH[a.status][1] }}">{{ STATUS_TH[a.status][0] }}</span>
+    {% if visible %}<a class="btn sm" href="{{ url_for('report_view', audit_id=a.id, rnd=1) }}">📄 Report 1 (PDF)</a>{% endif %}
+    {% if show2 %}<a class="btn sm primary" href="{{ url_for('report_view', audit_id=a.id, rnd=2) }}">📄 Report 2 (PDF)</a>{% endif %}
+  </div>
+</div>
+
+{% if not visible %}
+<div class="card empty"><h2>อยู่ระหว่างการตรวจประเมิน</h2><p>ผลการตรวจและรายการที่ต้องแก้ไขจะแสดงเมื่อหัวหน้าผู้ตรวจออก Report 1</p></div>
+{% else %}
+
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card kpi"><div class="k-label">คะแนนครั้งที่ 1</div><div class="k-val tnum lv-{{ level_of(r1.total.pct) }}">{{ r1.total.pct }}%</div><div class="k-sub tnum">{{ r1.total.got }}/{{ r1.total.max }} คะแนน</div></div>
+  <div class="card kpi"><div class="k-label">คะแนนครั้งที่ 2</div><div class="k-val tnum {{ ('lv-' ~ level_of(r2.total.pct)) if show2 }}">{{ (r2.total.pct ~ '%') if show2 else '–' }}</div><div class="k-sub">{{ (r2.total.got ~ '/' ~ r2.total.max ~ ' คะแนน') if show2 else 'หลังตรวจติดตาม' }}</div></div>
+  <div class="card kpi"><div class="k-label">ข้อบกพร่อง (NC)</div><div class="k-val tnum" style="color:var(--nc)">{{ r1.total.NC }}</div><div class="k-sub">ต้องตอบ CAPA</div></div>
+  <div class="card kpi"><div class="k-label">ข้อสังเกต (OBS)</div><div class="k-val tnum" style="color:var(--obs)">{{ r1.total.OBS }}</div><div class="k-sub">ต้องตอบ CAPA</div></div>
+</div>
+
+{# ---------------- CAPA ---------------- #}
+<div class="card" style="margin-bottom:14px">
+  <div class="card-h"><h2>แผนการแก้ไข (CAPA) · {{ follow|length }} ข้อ</h2>
+    {% if a.deadline %}<span class="badge amber">กำหนดส่ง {{ thai_date(a.deadline) }}</span>{% endif %}</div>
+  {% if a.status == 'r1_reported' and a.capa_return_note %}<div class="locked-note">คณะผู้ตรวจส่งกลับให้แก้ไข: {{ a.capa_return_note }}</div>{% endif %}
+  {% if capa_open %}
+  <p class="muted" style="margin-top:0">ระบุสาเหตุ การแก้ไข ผู้รับผิดชอบ กำหนดเสร็จ และแนบหลักฐาน (รูป/PDF) ทุกข้อ — ระบบบันทึกอัตโนมัติ เมื่อครบแล้วกด “ส่ง CAPA” คณะผู้ตรวจจึงจะเริ่มตรวจรอบที่ 2 ได้ (รอบ 2 ตรวจเฉพาะข้อเหล่านี้)</p>
+  {% elif a.status in ('capa_submitted','r2') %}
+  <p class="muted" style="margin-top:0">✓ ส่ง CAPA แล้วเมื่อ {{ thai_date(a.capa_submitted_at) }} — รอคณะผู้ตรวจตรวจติดตามครั้งที่ 2</p>
+  {% endif %}
+  {% if not follow %}<div class="empty">ไม่มีข้อบกพร่องหรือข้อสังเกตที่ต้องแก้ไข</div>{% endif %}
+
+  {% for iid in follow %}{% set r = resp[1][iid] %}{% set it = ITEMS[iid] %}{% set c = capa.get(iid) %}
+  {% set r2r = resp[2].get(iid) %}
+  <div class="capa-card {{ r.ftype }} {{ 'done' if c and c.action }}" data-item="{{ iid }}">
+    <div class="head">
+      <span class="tag {{ r.ftype }}">{{ FTYPES[r.ftype].short }}</span>
+      <span class="ref">{{ it.ref }}</span>
+      <span style="flex:1;min-width:200px">{{ it.text }}{% if it.max == 2 %}<span class="star">*</span>{% endif %}
+        <small class="muted"> · องค์ประกอบที่ {{ it.element }} · คะแนน {{ r.score or '–' }}/{{ it.max }}</small></span>
+      <span class="capa-state muted">{{ '✓ กรอกแล้ว' if c and c.action else '' }}</span>
+    </div>
+    <div class="find"><b>ข้อค้นพบ:</b> {{ r.comment or '–' }}
+      {% set ph = atts.get(('finding', 1, iid), []) %}
+      {% if ph %}<div class="thumbs">{% for p in ph %}<a href="{{ file_url(p) }}" target="_blank"><img src="{{ file_url(p) }}" alt="รูปหลักฐานจากผู้ตรวจ" loading="lazy"></a>{% endfor %}</div>{% endif %}
+    </div>
+    <div class="capa-grid">
+      <div class="field" style="margin:0"><label>สาเหตุของปัญหา</label><textarea data-k="root_cause" {{ 'disabled' if not capa_open }} placeholder="เช่น ยังไม่มีผู้รับผิดชอบตรวจสอบเป็นประจำ">{{ c.root_cause if c and c.root_cause else '' }}</textarea></div>
+      <div class="field" style="margin:0"><label>การแก้ไข / ป้องกัน *</label><textarea data-k="action" {{ 'disabled' if not capa_open }} placeholder="สิ่งที่ดำเนินการแล้ว หรือจะดำเนินการ">{{ c.action if c and c.action else '' }}</textarea></div>
+      <div class="field" style="margin:0"><label>ผู้รับผิดชอบ</label><input type="text" data-k="owner" value="{{ c.owner if c and c.owner else '' }}" {{ 'disabled' if not capa_open }}></div>
+      <div class="field" style="margin:0"><label>กำหนดแล้วเสร็จ</label><input type="date" data-k="due_date" value="{{ c.due_date if c and c.due_date else '' }}" {{ 'disabled' if not capa_open }}></div>
+    </div>
+    <div class="thumbs" data-files>
+      {% for p in atts.get(('capa', 1, iid), []) %}
+      <div class="thumb" data-att="{{ p.id }}">{% if p.content_type.startswith('image/') %}<a href="{{ file_url(p) }}" target="_blank"><img src="{{ file_url(p) }}" alt="หลักฐาน"></a>{% else %}<a class="filechip" href="{{ file_url(p) }}" target="_blank">📄 {{ p.filename }}</a>{% endif %}{% if capa_open %}<button type="button" class="tdel" title="ลบ">×</button>{% endif %}</div>
+      {% endfor %}
+    </div>
+    {% if capa_open %}
+    <div class="row" style="margin-top:8px">
+      <label class="btn sm photo-btn">📎 แนบหลักฐาน (รูป/PDF)<input type="file" accept="image/*,application/pdf" multiple hidden></label>
+      <span class="upl muted" style="font-size:.8rem"></span>
+    </div>
+    {% endif %}
+    {% if show2 or (a.status == 'r2' and is_staff()) %}
+    <div class="r1box" style="margin-top:10px"><span class="lbl">ผลตรวจติดตามครั้งที่ 2:</span>
+      {% if r2r and r2r.followup %}<b style="color:{{ FOLLOWUP[r2r.followup].color }}">{{ FOLLOWUP[r2r.followup].th }}</b>{% else %}รอผล{% endif %}
+      {% if r2r %} · คะแนน {{ r2r.score or '–' }}/{{ it.max }}{% endif %}
+      {% if r2r and r2r.fnote %}<div>{{ r2r.fnote }}</div>{% endif %}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if capa_open and follow %}
+  <form method="post" action="{{ url_for('capa_submit', audit_id=a.id) }}" class="sticky-submit row"
+        data-confirm-title="ส่ง CAPA ให้คณะผู้ตรวจ?" data-confirm="หลังส่งแล้วจะแก้ไขไม่ได้ (เว้นแต่คณะผู้ตรวจส่งกลับ) คณะผู้ตรวจจะนัดตรวจติดตามครั้งที่ 2 เฉพาะข้อเหล่านี้" data-ok-label="ส่ง CAPA" data-ok-cls="brand">
+    <span id="capaCount" class="muted"></span><span class="spacer"></span>
+    <span class="save-ind" id="saveind">● พร้อม</span>
+    <button class="btn brand" type="submit">📨 ส่ง CAPA ให้คณะผู้ตรวจ</button>
+  </form>
+  {% endif %}
+</div>
+
+{# ---------------- full results ---------------- #}
+<div class="card">
+  <div class="card-h"><h2>ผลการตรวจประเมินทุกข้อ</h2><span class="muted" style="font-size:.85rem"><span class="star">*</span> = ข้อ 2 คะแนน</span></div>
+  {% for e in range(1,8) %}{% set es1 = r1.elements[e] %}
+  <details {{ 'open' if es1.NC or es1.OBS }} style="border-top:1px solid var(--line);padding:10px 0">
+    <summary style="cursor:pointer;display:flex;gap:10px;align-items:center;list-style:none">
+      <span class="badge blue">องค์ {{ e }}</span><b style="flex:1">{{ ELEMENTS[e].title }}</b>
+      <span class="tnum">{{ es1.got }}/{{ es1.max }} · <b class="lv-{{ level_of(es1.pct) }}">{{ es1.pct }}%</b>{% if show2 %} → <b>{{ r2.elements[e].pct }}%</b>{% endif %}</span>
+    </summary>
+    <div class="res-item" style="font-weight:600;color:var(--ink-3);font-size:.8rem"><span>รายการ</span><span class="sc">ครั้งที่ 1</span><span class="sc">{{ 'ครั้งที่ 2' if show2 else '' }}</span></div>
+    {% for n in ELEMENTS[e].nodes if n.kind == 'item' %}{% set x = resp[1].get(n.id) %}{% set y = resp[2].get(n.id) %}
+    <div class="res-item">
+      <span>{% if n.code %}<b style="color:var(--primary-ink)">{{ n.code }}</b> {% endif %}{{ n.text }}{% if n.max == 2 %}<span class="star">*</span>{% endif %}
+        {% if x and x.ftype and x.comment %}<br><span class="tag {{ x.ftype }}">{{ FTYPES[x.ftype].short }}</span> <small>{{ x.comment }}</small>{% endif %}</span>
+      {% set v = x.score if x else none %}
+      <span class="sc {{ 'lv-good' if v and v != 'NA' and v|int >= n.max else ('lv-bad' if v and v != 'NA' else 'muted') }}">{{ v if v is not none else '–' }}{% if v and v != 'NA' %}/{{ n.max }}{% endif %}</span>
+      <span class="sc">{% if show2 %}{% set w = y.score if y else none %}{{ w if w is not none else '–' }}{% if w and w != 'NA' %}/{{ n.max }}{% endif %}{% endif %}</span>
+    </div>
+    {% endfor %}
+  </details>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if capa_open %}
+<script>
+(function () {
+  const base = {{ url_for('api_capa', audit_id=a.id, item_id='X')[:-1]|tojson }};
+  const attDel = {{ url_for('api_attachment_delete', att_id=0)[:-8]|tojson }};
+  const ind = document.getElementById('saveind');
+  const setInd = (c, t) => { ind.className = 'save-ind ' + c; ind.textContent = t; };
+  function count() {
+    const cards = document.querySelectorAll('.capa-card');
+    let n = 0;
+    cards.forEach(c => { const ok = c.querySelector('[data-k=action]').value.trim() !== ''; c.classList.toggle('done', ok);
+      c.querySelector('.capa-state').textContent = ok ? '✓ กรอกแล้ว' : ''; n += ok; });
+    document.getElementById('capaCount').innerHTML = `กรอกการแก้ไขแล้ว <b>${n}/${cards.length}</b> ข้อ`;
+  }
+  document.querySelectorAll('.capa-card').forEach(card => {
+    const id = card.dataset.item;
+    let t;
+    card.querySelectorAll('[data-k]').forEach(inp => {
+      const save = () => {
+        clearTimeout(t);
+        setInd('', '● กำลังบันทึก…');
+        t = setTimeout(async () => {
+          const d = {}; card.querySelectorAll('[data-k]').forEach(x => d[x.dataset.k] = x.value);
+          try { await postJSON(base + encodeURIComponent(id), d); setInd('ok', '✓ บันทึกแล้ว'); }
+          catch (e) { setInd('err', '⚠ บันทึกไม่สำเร็จ'); toast(e.message, 'error'); }
+        }, 700);
+        count();
+      };
+      inp.addEventListener('input', save);
+      inp.addEventListener('change', save);
+    });
+    const files = card.querySelector('[data-files]'), pin = card.querySelector('.photo-btn input'), upl = card.querySelector('.upl');
+    const bindDel = th => { const b = th.querySelector('.tdel'); b && b.addEventListener('click', async () => {
+      if (!await confirmBox('ลบไฟล์หลักฐาน?', '', 'ลบ', 'danger')) return;
+      try { await postJSON(attDel + th.dataset.att + '/delete'); th.remove(); } catch (e) { toast(e.message, 'error'); } }); };
+    files.querySelectorAll('.thumb').forEach(bindDel);
+    pin && pin.addEventListener('change', async () => {
+      const fl = Array.from(pin.files || []); pin.value = '';
+      for (let k = 0; k < fl.length; k++) {
+        upl.textContent = `กำลังอัปโหลด ${k + 1}/${fl.length}…`;
+        try {
+          const fd = new FormData(); fd.append('file', await shrinkImage(fl[k]));
+          const j = await postForm(base + encodeURIComponent(id) + '/file', fd);
+          const th = document.createElement('div'); th.className = 'thumb'; th.dataset.att = j.id;
+          th.innerHTML = (j.ctype || '').startsWith('image/') ? `<a href="${j.url}" target="_blank"><img src="${j.url}" alt="หลักฐาน"></a>` : `<a class="filechip" href="${j.url}" target="_blank">📄 ${j.name}</a>`;
+          th.innerHTML += '<button type="button" class="tdel" title="ลบ">×</button>';
+          files.appendChild(th); bindDel(th);
+        } catch (e) { toast(e.message, 'error'); }
+      }
+      upl.textContent = fl.length ? '✓ แนบแล้ว' : ''; setTimeout(() => upl.textContent = '', 2500);
+    });
+  });
+  count();
+})();
+</script>
+{% endif %}
+{% endblock %}

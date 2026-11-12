@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}เข้าสู่ระบบ{% endblock %}
+{% block topbar %}{% endblock %}
+{% block body %}
+<div class="login">
+  <form class="card" method="post">
+    <div class="logo">ES</div>
+    <h1 style="margin-bottom:2px">ESPReL MRA</h1>
+    <p class="muted" style="margin-top:0">ระบบตรวจประเมินความปลอดภัยห้องปฏิบัติการ<br>มหาวิทยาลัยนเรศวร</p>
+    <div class="field"><label>{{ 'บัญชีผู้ใช้มหาวิทยาลัย (NU Account)' if ldap_enabled else 'ชื่อผู้ใช้' }}</label>
+      <input type="text" name="username" autocomplete="username" autocapitalize="off" required autofocus></div>
+    <div class="field"><label>รหัสผ่าน</label><input type="password" name="password" autocomplete="current-password" required></div>
+    <button class="btn primary block" type="submit">เข้าสู่ระบบ</button>
+    <p class="hint" style="margin-bottom:0">
+      {% if ldap_enabled %}ใช้ชื่อผู้ใช้และรหัสผ่านเดียวกับระบบของมหาวิทยาลัย · ผู้ตรวจประเมินต้องได้รับสิทธิ์จากผู้ดูแลระบบ ·
+      ห้องปฏิบัติการเข้าสู่ระบบแล้วลงทะเบียนห้องได้ทันที
+      {% else %}โหมดทดสอบ (ยังไม่ได้ตั้งค่า LDAP): admin / admin1234 · lead / lead1234 · auditor1 / audit1234 · labuser / lab1234{% endif %}
+    </p>
+  </form>
+</div>
+{% endblock %}

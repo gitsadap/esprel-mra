@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}องค์ {{ el.no }} · {{ a.lab_name }}{% endblock %}
+{% macro sclass(score, mx) -%}
+  {%- if score is none -%}st-none{%- elif score == 'NA' -%}st-na{%- elif score|int >= mx -%}st-full{%- elif score|int == 0 -%}st-zero{%- else -%}st-part{%- endif -%}
+{%- endmacro %}
+{% macro vclass(v, mx) -%}
+  {%- if v == 'NA' -%}v-na{%- elif v|int >= mx -%}v-full{%- elif v|int == 0 -%}v-zero{%- else -%}v-part{%- endif -%}
+{%- endmacro %}
+{% block content %}
+{% set sd = st.get(el.no) %}
+<div class="assess-head">
+  <div class="lab">
+    <a href="{{ url_for('audit_view', audit_id=a.id, round=rnd) }}">← {{ a.lab_name }}</a>
+    <span class="badge {{ 'blue' if rnd==1 else 'violet' }}">ตรวจรอบที่ {{ rnd }}</span>
+    <span class="save-ind" id="saveind">● พร้อม</span>
+  </div>
+  <div class="el-tabs" id="eltabs">
+    {% for e in range(1,8) %}{% set x = summ.elements[e] %}{% set s = st.get(e) %}
+    <a class="el-tab {{ 'on' if e==el.no }} {{ 'done' if s and s.done }}" href="{{ url_for('assess', audit_id=a.id, rnd=rnd, el=e) }}" data-el="{{e}}">
+      <span class="n">{{ '✓' if s and s.done else e }}</span>
+      <span class="t">{{ ELEMENTS[e].short }}<b class="tp">{% if rnd == 2 %}ติดตาม {{ r2prog[e][0] }}/{{ r2prog[e][1] }}{% else %}{{ x.answered }}/{{ x.count }} ข้อ{% endif %}{% if asg.get(e) %} · {{ asg[e].full_name.split(' ')[0] }}{% endif %}</b></span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="el-title">
+  <div class="ring" id="elring" style="--p:{{ es.pct }};--c:var(--{{ {'good':'good','ok':'ok','warn':'warn','bad':'bad'}[level_of(es.pct)] }})"><span id="elpct">{{ es.pct|round|int }}%</span></div>
+  <div style="min-width:0">
+    <div class="muted" style="font-size:.85rem">องค์ประกอบที่ {{ el.no }}{% if asg.get(el.no) %} · ผู้รับผิดชอบ: {{ asg[el.no].full_name }}{% endif %}</div>
+    <div class="big">{{ el.title }}</div>
+  </div>
+</div>
+
+{% if not editable %}
+<div class="locked-note">🔒 รอบที่ {{ rnd }} ปิดการแก้ไขแล้ว (ออกรายงานแล้วหรือยังไม่เปิดรอบ) — ดูข้อมูลได้อย่างเดียว{% if is_lead() %} · หัวหน้าผู้ตรวจสามารถ “เปิดแก้ไข” ได้ที่หน้าห้องปฏิบัติการ{% endif %}</div>
+{% endif %}
+{% set nfollow = namespace(v=0) %}{% for n in el.nodes if n.kind == 'item' and n.id in follow %}{% set nfollow.v = nfollow.v + 1 %}{% endfor %}
+{% if rnd == 2 %}
+<div class="locked-note" style="background:#f6f3ff;border-color:#e1d9fb;color:#40308a">
+  <b>รอบที่ 2 ตรวจเฉพาะข้อที่เป็น NC/OBS ในรอบที่ 1</b> ({{ nfollow.v }} ข้อในองค์ประกอบนี้) พร้อม CAPA และหลักฐานของห้องปฏิบัติการ —
+  ข้ออื่นใช้คะแนนรอบที่ 1 และล็อกไว้
+  {% if not nfollow.v %}<br>✓ องค์ประกอบนี้ไม่มีข้อที่ต้องตรวจติดตาม{% endif %}
+</div>
+{% endif %}
+
+<div class="toolbar">
+  <div class="seg" id="filter">
+    {% if rnd == 2 %}
+    <button class="on" data-f="follow">ข้อที่ต้องติดตาม</button>
+    <button data-f="fu-todo">ยังไม่ระบุผล</button>
+    <button data-f="all">ทุกข้อ (รวมข้อที่ล็อก)</button>
+    {% else %}
+    <button class="on" data-f="all">ทั้งหมด</button>
+    <button data-f="todo">ยังไม่ตรวจ</button>
+    <button data-f="lost">ไม่เต็ม</button>
+    <button data-f="find">มีข้อค้นพบ</button>
+    {% endif %}
+  </div>
+  <input type="search" id="search" placeholder="ค้นหาข้อ / คำ">
+  <span class="spacer"></span>
+  <span class="muted" style="font-size:.82rem"><span class="star">*</span> = ข้อ 2 คะแนน (ตามคู่มือการประเมินฯ)</span>
+  <button class="btn sm ghost" id="expandAll">ขยาย/ย่อทั้งหมด</button>
+</div>
+
+<div id="items" class="{{ 'r2mode' if rnd == 2 }}">
+{% for gr in groups %}
+  {% set sec = gr.sec %}
+  {% set ss = es.sections.get(sec.code) if sec else none %}
+  {% set hasf = namespace(v=false) %}{% for n in gr.nodes if n.kind == 'item' and n.id in follow %}{% set hasf.v = true %}{% endfor %}
+  <div class="section" data-sec="{{ sec.code if sec else '' }}" data-hasfollow="{{ 1 if hasf.v else 0 }}">
+    {% if sec %}
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="code">{{ sec.code }}</span>
+      <span class="tt">{{ sec.text }}</span>
+      <span class="sc tnum" data-secscore="{{ sec.code }}">{{ ss.got }}/{{ ss.max }}<br><small>{{ ss.pct }}%</small></span>
+      <span class="chev">▾</span>
+    </div>
+    {% endif %}
+    <div class="sec-body">
+      {% if editable and sec and (rnd == 1 or hasf.v) %}
+      <div class="sec-tools">
+        {% if rnd == 2 %}<button class="btn sm" data-confirm-sec="{{ sec.code }}">✓ ยืนยันคะแนนเดิมของข้อที่ติดตาม</button>
+        {% else %}<button class="btn sm" data-fill-sec="{{ sec.code }}">★ ให้คะแนนเต็มข้อที่ยังไม่ตรวจ</button>{% endif %}
+      </div>
+      {% endif %}
+      {% for n in gr.nodes %}
+        {% if n.kind == 'heading' %}
+          <div class="heading">{% if n.code %}<span class="c">{{ n.code }}</span>{% endif %}<span>{{ n.text }}</span></div>
+        {% elif n.kind == 'option' %}
+          <div class="opt-note">• {{ n.text }}</div>
+        {% elif n.kind == 'item' %}
+          {% set r = resp.get(n.id) %}
+          {% set score = r.score if r else none %}
+          {% set r1 = r1resp.get(n.id) %}
+          {% set isfollow = rnd == 2 and n.id in follow %}
+          {% set locked = rnd == 2 and not isfollow %}
+          {% set can = editable and not locked %}
+          {% set photos = atts.get(('finding', rnd, n.id), []) %}
+          <div class="item {{ sclass(score, n.max) }} {{ 'carried' if r and r.carried }} {{ 'locked' if locked }}" id="i-{{ n.id }}"
+               data-id="{{ n.id }}" data-max="{{ n.max }}" data-score="{{ score if score is not none else '' }}"
+               data-ftype="{{ r.ftype if r and r.ftype else '' }}" data-follow="{{ 1 if isfollow else 0 }}"
+               data-locked="{{ 1 if locked else 0 }}" data-fu="{{ r.followup if r and r.followup else '' }}"
+               data-carried="{{ 1 if r and r.carried and isfollow else 0 }}"
+               data-text="{{ ((n.code or '') ~ ' ' ~ n.text ~ ' ' ~ (r.comment if r and r.comment else ''))|lower }}">
+            <div class="item-top">
+              <div class="item-txt">
+                {% if n.code %}<span class="ref">{{ n.code }}</span>{% else %}<span class="ref" style="color:var(--ink-3)">•</span>{% endif %}{{ n.text }}{% if n.max == 2 %}<span class="star" title="ข้อ 2 คะแนน">*</span>{% endif %}
+                <span class="mx">· เต็ม {{ n.max }}</span>
+                {% if locked %}<span class="badge gray" style="margin-left:4px">🔒 ใช้คะแนนรอบ 1</span>{% endif %}
+                {% if n._opts %}<span class="parent">รูปแบบ: {{ n._opts|join(' / ') }}</span>{% endif %}
+              </div>
+              <div class="scores">
+                {% for v in range(0, n.max + 1) %}
+                <button class="sbtn {{ vclass(v|string, n.max) }} {{ 'on' if score == v|string }}" data-v="{{ v }}" {{ 'disabled' if not can }}>{{ v }}</button>
+                {% endfor %}
+                <button class="sbtn na v-na {{ 'on' if score == 'NA' }}" data-v="NA" {{ 'disabled' if not can }} title="ไม่เกี่ยวข้อง">NA</button>
+              </div>
+              {% if not locked %}
+              <div class="item-foot">
+              <button class="f-toggle" {{ 'disabled' if not can and not (r and r.comment) and not photos }}>
+                {% if r and r.ftype %}<span class="tag {{ r.ftype }}">{{ FTYPES[r.ftype].short }}</span>{% endif %}
+                <span class="ftl">{{ 'ข้อค้นพบ' if r and (r.ftype or r.comment) else '+ ข้อค้นพบ / รูปหลักฐาน' }}</span>
+                {% if photos %}<span class="pcount">📷 {{ photos|length }}</span>{% endif %}</button>
+              {% if r and r.carried and isfollow %}<span class="badge violet carried-badge">ยกมาจากรอบ 1</span>{% endif %}
+              <span class="who">{% if r and r.updated_name %}{{ r.updated_name }} · {{ r.updated_at[11:16] }}{% endif %}</span>
+              </div>
+              {% endif %}
+            </div>
+            {% if isfollow %}
+            {% set c = capa.get(n.id) %}
+            {% set r1photos = atts.get(('finding', 1, n.id), []) %}
+            {% set cfiles = atts.get(('capa', 1, n.id), []) %}
+            <div class="r1box">
+              <span class="lbl">ผลรอบที่ 1:</span> คะแนน {{ r1.score if r1.score is not none else '–' }}/{{ n.max }}
+              {% if r1.ftype %}<span class="tag {{ r1.ftype }}">{{ FTYPES[r1.ftype].short }}</span>{% endif %}
+              {% if r1.comment %}<div>{{ r1.comment }}</div>{% endif %}
+              {% if r1photos %}<div class="thumbs">{% for p in r1photos %}<a href="{{ file_url(p) }}" target="_blank"><img src="{{ file_url(p) }}" alt="รูปหลักฐานรอบ 1" loading="lazy"></a>{% endfor %}</div>{% endif %}
+            </div>
+            <div class="capabox">
+              <span class="lbl">CAPA ของห้องปฏิบัติการ</span>
+              {% if c and c.action %}
+                {% if c.root_cause %}<div><b>สาเหตุ:</b> {{ c.root_cause }}</div>{% endif %}
+                <div><b>การแก้ไข:</b> {{ c.action }}</div>
+                <div class="muted" style="font-size:.82rem">{% if c.owner %}ผู้รับผิดชอบ {{ c.owner }}{% endif %}{% if c.due_date %} · กำหนดเสร็จ {{ thai_date(c.due_date, True) }}{% endif %}</div>
+              {% else %}<div class="muted">ห้องปฏิบัติการไม่ได้ระบุ</div>{% endif %}
+              {% if cfiles %}<div class="thumbs">{% for p in cfiles %}{% if p.content_type.startswith('image/') %}<a href="{{ file_url(p) }}" target="_blank"><img src="{{ file_url(p) }}" alt="หลักฐาน CAPA" loading="lazy"></a>{% else %}<a class="filechip" href="{{ file_url(p) }}" target="_blank">📄 {{ p.filename }}</a>{% endif %}{% endfor %}</div>{% endif %}
+            </div>
+            <div class="fu">
+              <div class="row" style="gap:8px">
+                <span class="muted" style="font-size:.85rem">ผลการตรวจติดตาม:</span>
+                <div class="seg" data-fu>
+                  {% for k, v in FOLLOWUP.items() %}<button data-f="{{k}}" class="{{ 'on' if r and r.followup==k }}" {{ 'disabled' if not can }}>{{ v.th }}</button>{% endfor %}
+                </div>
+              </div>
+              <textarea class="fnote" placeholder="ผลการตรวจสอบหลักฐาน/สิ่งที่พบในรอบที่ 2" style="margin-top:6px;min-height:60px" {{ 'disabled' if not can }}>{{ r.fnote if r and r.fnote else '' }}</textarea>
+            </div>
+            {% endif %}
+            {% if not locked %}
+            <div class="finding" {% if not (r and (r.ftype or r.comment)) and not photos %}style="display:none"{% endif %}>
+              <div class="ftypes">
+                {% for k, v in FTYPES.items() %}<button data-t="{{k}}" class="{{ 'on' if r and r.ftype==k }}" {{ 'disabled' if not can }}>{{ v.th }}</button>{% endfor %}
+              </div>
+              <textarea class="comment" placeholder="{{ 'ข้อค้นพบที่ยังคงอยู่ในรอบที่ 2 (ถ้ามี)' if rnd == 2 else 'รายละเอียดข้อบกพร่อง / ข้อสังเกต / ข้อเสนอแนะ (แสดงในรายงานและสรุปประชุมปิด)' }}" {{ 'disabled' if not can }}>{{ r.comment if r and r.comment else '' }}</textarea>
+              <div class="thumbs" data-thumbs>
+                {% for p in photos %}<div class="thumb" data-att="{{ p.id }}"><a href="{{ file_url(p) }}" target="_blank"><img src="{{ file_url(p) }}" alt="รูปหลักฐาน" loading="lazy"></a>{% if can %}<button type="button" class="tdel" title="ลบรูป">×</button>{% endif %}</div>{% endfor %}
+              </div>
+              {% if can %}
+              <div class="row" style="gap:8px;margin-top:8px">
+                <label class="btn sm photo-btn">📷 เพิ่มรูปหลักฐาน<input type="file" accept="image/*" multiple hidden></label>
+                <span class="upl muted" style="font-size:.8rem"></span>
+              </div>
+              <div class="quick">
+                {% for q in ['ไม่พบเอกสาร/หลักฐาน', 'ไม่มีการบันทึกข้อมูล', 'ข้อมูลไม่เป็นปัจจุบัน', 'ควรจัดทำแนวปฏิบัติ (SOP) ให้ชัดเจน', 'ควรติดป้าย/สัญลักษณ์ให้ชัดเจน', 'ดำเนินการแล้วบางส่วน'] %}
+                <button type="button" data-q="{{ q }}">+ {{ q }}</button>{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+<div class="card" style="margin-top:10px">
+  <h3>สรุปภาพรวมองค์ประกอบที่ {{ el.no }} <small>(แสดงในสรุปประชุมปิด)</small></h3>
+  <textarea id="elsummary" placeholder="เช่น จุดเด่น/ประเด็นสำคัญที่ต้องแจ้งในที่ประชุมปิด" {{ 'disabled' if not editable }}>{{ sd.summary if sd and sd.summary else '' }}</textarea>
+</div>
+
+<div class="row" style="margin-top:14px;justify-content:space-between">
+  {% if el.no > 1 %}<a class="btn" href="{{ url_for('assess', audit_id=a.id, rnd=rnd, el=el.no-1) }}">← องค์ประกอบที่ {{ el.no-1 }}</a>{% else %}<span></span>{% endif %}
+  {% if el.no < 7 %}<a class="btn" href="{{ url_for('assess', audit_id=a.id, rnd=rnd, el=el.no+1) }}">องค์ประกอบที่ {{ el.no+1 }} →</a>
+  {% else %}<a class="btn" href="{{ url_for('audit_view', audit_id=a.id, round=rnd) }}">กลับหน้าสรุปห้องปฏิบัติการ</a>{% endif %}
+</div>
+
+<div class="dock">
+  <div class="dock-in">
+    <div class="score"><div><div class="muted" style="font-size:.75rem">คะแนนองค์ {{ el.no }}</div>
+      <div class="v tnum"><span id="d-got">{{ es.got }}</span>/<span id="d-max">{{ es.max }}</span> · <span id="d-pct">{{ es.pct }}</span>%</div></div></div>
+    <div class="prog">
+      <div class="lbl">{% if rnd == 2 %}<span>ติดตามแล้ว <b id="d-fu">{{ r2prog[el.no][0] }}</b>/{{ nfollow.v }} ข้อ<b id="d-ans" hidden>{{ es.answered }}</b></span>
+        {% else %}<span>ตรวจแล้ว <b id="d-ans">{{ es.answered }}</b>/{{ es.count }} ข้อ</span>{% endif %}
+        <span><span style="color:var(--nc)">NC <b id="d-nc">{{ es.NC }}</b></span> · <span style="color:var(--obs)">OBS <b id="d-obs">{{ es.OBS }}</b></span> · <span style="color:var(--sug)">แนะนำ <b id="d-sug">{{ es.SUG }}</b></span></span></div>
+      <div class="bar"><i id="d-bar" style="width:{{ (es.progress if rnd == 1 else ((r2prog[el.no][0] * 100 / nfollow.v) if nfollow.v else 100))|round|int }}%"></i></div>
+    </div>
+    <div class="acts row">
+      {% if editable %}
+      <button class="btn {{ 'good' if sd and sd.done else 'primary' }}" id="doneBtn" data-done="{{ 1 if sd and sd.done else 0 }}">
+        {{ '✓ ตรวจเสร็จแล้ว' if sd and sd.done else 'ยืนยันตรวจองค์นี้เสร็จ' }}</button>
+      {% endif %}
+      {% if el.no < 7 %}<a class="btn" href="{{ url_for('assess', audit_id=a.id, rnd=rnd, el=el.no+1) }}" title="องค์ประกอบถัดไป">→</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% set nf2 = namespace(v=0) %}{% for n in el.nodes if n.kind == 'item' and n.id in follow %}{% set nf2.v = nf2.v + 1 %}{% endfor %}
+<script>
+const CFG = {
+  base: {{ url_for('api_item', audit_id=a.id, rnd=rnd, item_id='X')[:-1]|tojson }},
+  fill: {{ url_for('api_fill', audit_id=a.id, rnd=rnd, el=el.no)|tojson }},
+  done: {{ url_for('api_done', audit_id=a.id, rnd=rnd, el=el.no)|tojson }},
+  summary: {{ url_for('api_el_summary', audit_id=a.id, rnd=rnd, el=el.no)|tojson }},
+  items: {{ es.count if rnd == 1 else nf2.v }}, rnd: {{ rnd }}, editable: {{ 'true' if editable else 'false' }},
+  photo: {{ url_for('api_photo', audit_id=a.id, rnd=rnd, item_id='X')[:-7]|tojson }},
+  attDel: {{ url_for('api_attachment_delete', att_id=0)[:-8]|tojson }},
+  ftypes: {{ FTYPES|tojson }}
+};
+</script>
+<script src="{{ url_for('static', filename='js/assess.js') }}?v=3"></script>
+{% endblock %}
