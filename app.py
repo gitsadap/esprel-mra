@@ -341,6 +341,8 @@ def register(app):
     @app.before_request
     def before():
         g.user = None
+        if request.endpoint == "static":      # ไฟล์ CSS/JS/รูป ไม่ต้องใช้ฐานข้อมูล
+            return None
         uid = session.get("uid")
         if uid:
             g.user = get_db().execute("SELECT * FROM users WHERE id=? AND active=1", (uid,)).fetchone()

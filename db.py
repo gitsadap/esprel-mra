@@ -306,8 +306,18 @@ class DB:
 
 def get_db():
     if "db" not in g:
+        if not IS_PG and _sqlite_missing():
+            # ไฟล์ฐานข้อมูลถูกลบ/ย้ายระหว่างที่โปรแกรมทำงาน → สร้างตารางและบัญชีตั้งต้นใหม่ แทนที่จะเกิดข้อผิดพลาดทุกหน้า
+            init_db(force=True)
         g.db = DB()
     return g.db
+
+
+def _sqlite_missing():
+    try:
+        return os.path.getsize(config.SQLITE_PATH) == 0
+    except OSError:
+        return True
 
 
 def close_db(_e=None):
