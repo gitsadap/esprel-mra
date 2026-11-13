@@ -415,3 +415,4 @@ body.present{background:#0f172a}
 #scoretbl tr.total td{font-weight:700;background:var(--surface-2)}
 .app-list{margin-top:12px;display:grid;gap:8px}
 .app-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+@media (max-width:600px){.sticky-submit>.muted{display:none}}

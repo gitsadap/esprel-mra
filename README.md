@@ -48,6 +48,8 @@ Web application (Python/Flask) · ฐานข้อมูล **Supabase (Postgr
   (ค) ติดตั้งแอปบนเซิร์ฟเวอร์ภายใน มน. แทน Vercel (โค้ดเดิมใช้ได้ทันที — `python app.py` หรือ Docker)
 
 ## 4) รันในเครื่อง (พัฒนา/ทดสอบ)
+**ง่ายที่สุด:** Mac ดับเบิลคลิก `run_mac.command` · Windows ดับเบิลคลิก `run_windows.bat` → เปิด http://localhost:8080 ให้อัตโนมัติ
+(ครั้งแรกสร้างข้อมูลตัวอย่างจากไฟล์ Excel ห้อง AG 2312 ในโฟลเดอร์แม่ ถ้ามี) — หรือสั่งเอง:
 ```
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
