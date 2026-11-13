@@ -427,3 +427,10 @@ body.present{background:#0f172a}
 .topbar .brand>span:last-child{min-width:0;overflow:hidden}
 .brand .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .anon-login{flex:none}
+.review-box{border-left:5px solid var(--bad);background:#fff}
+.review-note{white-space:pre-wrap;background:var(--bad-soft);color:#7f1d1d;border-radius:10px;padding:10px 12px;margin:8px 0;line-height:1.6}
+.review-note.sm{font-size:.84rem;padding:6px 10px;margin:6px 0 0}
+.chip-btn{font:inherit;font-size:.8rem;border:1px dashed var(--line-2);background:#fff;border-radius:999px;padding:4px 10px;cursor:pointer;color:var(--ink-2);text-align:left}
+.chip-btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.danger:not(.ghost){background:var(--bad);color:#fff;border-color:var(--bad)}
+.app-row>div:first-child{flex:1 1 260px!important}

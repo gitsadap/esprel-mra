@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="csrf-token" content="{{ csrf_token }}">
 <title>{% block title %}ESPReL MRA{% endblock %} · ESPReL MRA NU</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=5">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=6">
 {% block head %}{% endblock %}
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
@@ -57,7 +57,7 @@
   <div class="actions" id="modal-actions"></div>
 </div></div>
 
-<script src="{{ url_for('static', filename='js/app.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=6"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

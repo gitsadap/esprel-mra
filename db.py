@@ -93,6 +93,9 @@ CREATE TABLE IF NOT EXISTS applications(
   form TEXT,
   submitted_at TEXT,
   updated_at TEXT,
+  review_note TEXT,
+  reviewed_at TEXT,
+  reviewed_by INTEGER,
   UNIQUE(lab_id, year_be)
 );
 CREATE TABLE IF NOT EXISTS app_files(
@@ -337,6 +340,8 @@ LATER_COLUMNS = [
     ("applications", "submitted_at", "TEXT"), ("applications", "updated_at", "TEXT"),
     ("labs", "department", "TEXT"), ("labs", "organization", "TEXT"), ("labs", "fax", "TEXT"),
     ("users", "must_change_pw", "INTEGER NOT NULL DEFAULT 0"),
+    ("applications", "review_note", "TEXT"), ("applications", "reviewed_at", "TEXT"),
+    ("applications", "reviewed_by", "INTEGER"),
 ]
 
 

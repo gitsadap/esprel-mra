@@ -69,6 +69,9 @@ CREATE TABLE IF NOT EXISTS applications(
   form TEXT,
   submitted_at TEXT,
   updated_at TEXT,
+  review_note TEXT,
+  reviewed_at TEXT,
+  reviewed_by INTEGER,
   UNIQUE(lab_id, year_be)
 );
 CREATE TABLE IF NOT EXISTS app_files(

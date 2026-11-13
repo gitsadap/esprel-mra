@@ -199,3 +199,52 @@ def test_lead_attaches_lab_account_by_email(app):
     _, pw = _creds("head.f@example.org")
     c = _first_login(app, "head.f@example.org", pw)
     assert a["lab_name"] in c.get("/lab").get_data(as_text=True)
+
+
+def test_reject_with_reason_and_resubmit(app):
+    anon = app.test_client()
+    mailer.OUTBOX.clear()
+    _apply(anon, "ห้อง G 701", "g@example.org")
+    c = _first_login(app, "g@example.org", _creds("g@example.org")[1])
+    from db import DB
+    d = DB()
+    ap = d.execute("SELECT ap.* FROM applications ap JOIN labs l ON l.id=ap.lab_id WHERE l.name='ห้อง G 701'").fetchone()
+    d.close()
+    lead = login(app.test_client(), "lead", "lead1234")
+    # ไม่มีเหตุผล → ไม่เปลี่ยนสถานะ
+    lead.post(f"/application/{ap['id']}/reject", data={"reason": ""})
+    assert _status("ห้อง G 701") == "pending"
+    # ห้องปฏิบัติการไม่มีสิทธิ์กดไม่อนุมัติ
+    assert c.post(f"/application/{ap['id']}/reject", data={"reason": "ทดสอบสิทธิ์"}).status_code in (302, 403)
+    assert _status("ห้อง G 701") == "pending"
+    reason = "ใบสมัครที่แนบยังไม่มีลายมือชื่อผู้มีอำนาจลงนาม\nเลขทะเบียน ESPReL ไม่ตรงกับระบบ วช."
+    mailer.OUTBOX.clear()
+    lead.post(f"/application/{ap['id']}/reject", data={"reason": reason})
+    assert _status("ห้อง G 701") == "rejected"
+    msg = [m for m in mailer.OUTBOX if m["to"] == "g@example.org" and m["kind"] == "review"][-1]
+    assert "ยังไม่มีลายมือชื่อ" in msg["body"] and f"/lab/apply/{ap['id']}" in msg["body"]
+    # ห้องเห็นเหตุผลในหน้าแรกและในใบสมัคร
+    assert "ยังไม่มีลายมือชื่อ" in c.get("/lab").get_data(as_text=True)
+    page = c.get(f"/lab/apply/{ap['id']}").get_data(as_text=True)
+    assert "ยังไม่ได้รับการอนุมัติ" in page and "ส่งใบสมัครอีกครั้ง" in page
+    # หน้าจัดทีมแสดงเหตุผล
+    assert "ยังไม่มีลายมือชื่อ" in lead.get("/planning?year=2573").get_data(as_text=True)
+    # แก้ไขแล้วส่งใหม่ → pending
+    data = fm001.example_form("ห้อง G 701", FAC, "2-0100-1234-0", year_be="2573", coord_email="g@example.org",
+                              lab_id=str(ap["lab_id"]))
+    r = c.post(f"/lab/apply/{ap['id']}", data=data)
+    assert r.status_code == 302 and _status("ห้อง G 701") == "pending"
+    assert "ส่งใหม่หลังแก้ไข" in lead.get("/planning?year=2573").get_data(as_text=True)
+    # อนุมัติ → อีเมลแจ้งห้อง
+    mailer.OUTBOX.clear()
+    lead.post("/planning", data={"year": "2573", "action": "approve", "app_id": str(ap["id"])})
+    assert _status("ห้อง G 701") == "approved"
+    assert any(m["to"] == "g@example.org" and "ได้รับการอนุมัติ" in m["subject"] for m in mailer.OUTBOX)
+
+
+def _status(name):
+    from db import DB
+    d = DB()
+    r = d.execute("SELECT ap.status FROM applications ap JOIN labs l ON l.id=ap.lab_id WHERE l.name=?", (name,)).fetchone()
+    d.close()
+    return r["status"]

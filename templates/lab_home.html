@@ -36,12 +36,14 @@
       <div style="flex:1;min-width:0">
         <b>ใบสมัคร FM-001 ปี {{ ap.year_be }}</b>{% if ap.app_no %} <small class="muted">· เลขที่ {{ ap.app_no }}</small>{% endif %}<br>
         <span class="badge {{ APP_STATUS_TH[ap.status][1] }}">{{ APP_STATUS_TH[ap.status][0] }}</span>
-        {% if ap.status != 'draft' %}
+        {% if ap.status == 'rejected' and ap.review_note %}
+          <div class="review-note sm"><b>เหตุผลที่ไม่อนุมัติ:</b> {{ ap.review_note }}</div>
+        {% elif ap.status != 'draft' %}
           {% if x.signed %}<span class="badge green">✓ แนบฉบับลงนามแล้ว</span>{% else %}<span class="warn-txt">⚠ ยังไม่แนบฉบับลงนาม</span>{% endif %}
         {% endif %}
       </div>
       <div class="row" style="gap:6px">
-        <a class="btn sm {{ 'brand' if ap.status == 'draft' }}" href="{{ url_for('lab_apply', app_id=ap.id) }}">{{ '✎ กรอกต่อ/ส่ง' if ap.status == 'draft' else ('✎ แก้ไข/แนบไฟล์' if ap.status == 'pending' else '👁 ดูใบสมัคร') }}</a>
+        <a class="btn sm {{ 'brand' if ap.status in ('draft', 'rejected') }}" href="{{ url_for('lab_apply', app_id=ap.id) }}">{{ '✎ กรอกต่อ/ส่ง' if ap.status == 'draft' else ('✎ แก้ไขและส่งใหม่' if ap.status == 'rejected' else ('✎ แก้ไข/แนบไฟล์' if ap.status == 'pending' else '👁 ดูใบสมัคร')) }}</a>
         {% if ap.status != 'draft' %}<a class="btn sm" href="{{ url_for('application_print', app_id=ap.id) }}" target="_blank">🖨 พิมพ์</a>{% endif %}
       </div>
     </div>

@@ -27,7 +27,17 @@
   </div>
 </div>
 
-{% if ap and st != 'draft' %}
+{% if ap and st == 'rejected' and ap.review_note %}
+<div class="card review-box" style="margin-bottom:14px">
+  <h3 style="margin-bottom:4px">❗ ใบสมัครยังไม่ได้รับการอนุมัติ — โปรดแก้ไขและส่งใหม่</h3>
+  <div class="muted" style="font-size:.85rem">แจ้งโดยหัวหน้าผู้ตรวจประเมิน{% if ap.reviewed_at %} · {{ thai_date(ap.reviewed_at) }}{% endif %}</div>
+  <div class="review-note">{{ ap.review_note }}</div>
+  {% if editable %}<div class="hint">แก้ไขข้อมูลด้านล่างหรือแนบเอกสารเพิ่ม แล้วกด “ส่งใบสมัครอีกครั้ง” ท้ายหน้า</div>{% endif %}
+</div>
+{% elif ap and st == 'pending' and ap.review_note %}
+<div class="locked-note">ส่งใบสมัครที่แก้ไขแล้ว — รอหัวหน้าผู้ตรวจพิจารณา · เหตุผลที่ส่งกลับครั้งก่อน: {{ ap.review_note }}</div>
+{% endif %}
+{% if ap and st not in ('draft', 'rejected') %}
 <div class="card" style="margin-bottom:14px;border-left:5px solid var(--brand)">
   <div class="row" style="justify-content:space-between;align-items:flex-start">
     <div><h3 style="margin-bottom:2px">ขั้นตอนหลังส่งใบสมัคร</h3>
@@ -193,7 +203,7 @@
   <span class="spacer"></span>
   <button class="btn" type="submit" name="action" value="save" formnovalidate>💾 บันทึกร่าง</button>
   {% endif %}
-  <button class="btn brand" type="submit" name="action" value="submit">📨 {{ 'ส่งใบสมัครอีกครั้ง' if st == 'pending' else 'ส่งใบสมัคร' }}</button>
+  <button class="btn brand" type="submit" name="action" value="submit">📨 {{ 'ส่งใบสมัครอีกครั้ง' if st in ('pending', 'rejected') else 'ส่งใบสมัคร' }}</button>
 </div>
 {% endif %}
 </form>

@@ -38,7 +38,7 @@ STATUS_TH = {
 }
 STATUS_ORDER = ["r1", "r1_reported", "capa_submitted", "r2", "r2_reported"]
 APP_STATUS_TH = {"draft": ("ร่าง · ยังไม่ส่ง", "gray"), "pending": ("ส่งแล้ว · รออนุมัติ", "amber"), "approved": ("อนุมัติแล้ว · รอจัดทีม", "blue"),
-                 "assigned": ("จัดทีมแล้ว", "green"), "rejected": ("ไม่อนุมัติ", "red")}
+                 "assigned": ("จัดทีมแล้ว", "green"), "rejected": ("ไม่อนุมัติ · ส่งกลับแก้ไข", "red")}
 IMG_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/heic": ".heic"}
 DOC_TYPES = dict(IMG_TYPES, **{"application/pdf": ".pdf"})
 
@@ -1133,6 +1133,56 @@ def register(app):
                 db.execute("""INSERT INTO app_files(application_id,kind,path,filename,content_type,size,uploaded_by,created_at)
                               VALUES(?,?,?,?,?,?,?,?)""", (app_id, kind, path, name, ctype, size, uid, now()))
 
+    def _lab_recipients(lab_id):
+        rows = get_db().execute(
+            """SELECT DISTINCT u.id, u.full_name, COALESCE(u.email, u.username) addr FROM users u
+               WHERE u.active=1 AND (u.id=(SELECT owner_user_id FROM labs WHERE id=?)
+                     OR u.id IN (SELECT user_id FROM lab_members WHERE lab_id=?))""", (lab_id, lab_id)).fetchall()
+        return [r for r in rows if r["addr"] and "@" in r["addr"]]
+
+    def _mail_review(ap_id, approved):
+        """แจ้งผลการพิจารณาใบสมัครให้ห้องปฏิบัติการทางอีเมล"""
+        ap = get_db().execute("""SELECT ap.*, l.name lab_name FROM applications ap JOIN labs l ON l.id=ap.lab_id
+                                 WHERE ap.id=?""", (ap_id,)).fetchone()
+        link = f"{base_url()}{url_for('lab_apply', app_id=ap_id)}"
+        no = ap["app_no"] or ""
+        for r in _lab_recipients(ap["lab_id"]):
+            if approved:
+                subj = f"[ESPReL MRA มน.] ใบสมัคร {no} ได้รับการอนุมัติ · {ap['lab_name']}"
+                body = (f"เรียน {r['full_name']}\n\nใบสมัครรับการตรวจประเมิน FM-001 ของ “{ap['lab_name']}” "
+                        f"ปี {ap['year_be']} เลขที่ {no} ได้รับการอนุมัติแล้ว\n"
+                        "คณะผู้ตรวจประเมินจะแจ้งกำหนดการตรวจประเมินผ่านระบบต่อไป\n\n"
+                        f"ดูสถานะ: {link}\n\nระบบ ESPReL MRA มหาวิทยาลัยนเรศวร (อีเมลอัตโนมัติ)")
+            else:
+                subj = f"[ESPReL MRA มน.] ใบสมัคร {no} ไม่อนุมัติ · โปรดแก้ไขและส่งใหม่"
+                body = (f"เรียน {r['full_name']}\n\nใบสมัครรับการตรวจประเมิน FM-001 ของ “{ap['lab_name']}” "
+                        f"ปี {ap['year_be']} เลขที่ {no} ยังไม่ได้รับการอนุมัติ\n\n"
+                        f"เหตุผล / สิ่งที่ต้องแก้ไข:\n{ap['review_note']}\n\n"
+                        f"แก้ไขใบสมัครหรือแนบเอกสารเพิ่ม แล้วกด “ส่งใบสมัครอีกครั้ง” ได้ที่\n{link}\n\n"
+                        "ระบบ ESPReL MRA มหาวิทยาลัยนเรศวร (อีเมลอัตโนมัติ)")
+            mailer.send(r["addr"], subj, body, kind="review", user_id=r["id"])
+
+    @app.route("/application/<int:app_id>/reject", methods=["POST"])
+    @roles("lead", "admin")
+    def application_reject(app_id):
+        """ไม่อนุมัติ/ส่งกลับ พร้อมเหตุผล → ห้องปฏิบัติการเห็นในระบบ + ได้รับอีเมล แก้ไขแล้วส่งใหม่ได้"""
+        db = get_db()
+        ap = _load_application(app_id)
+        reason = (request.form.get("reason") or "").strip()
+        if len(reason) < 5:
+            flash("กรุณาระบุเหตุผลการไม่อนุมัติ/สิ่งที่ต้องแก้ไข เพื่อแจ้งห้องปฏิบัติการ", "error")
+        elif ap["status"] not in ("pending", "approved", "rejected"):
+            flash("ใบสมัครนี้จัดทีมตรวจแล้ว — ไม่สามารถเปลี่ยนเป็นไม่อนุมัติได้", "error")
+        else:
+            db.execute("""UPDATE applications SET status='rejected', review_note=?, reviewed_at=?, reviewed_by=?
+                          WHERE id=?""", (reason[:3000], now(), g.user["id"], app_id))
+            db.execute("INSERT INTO audit_log(user_id,action,detail,created_at) VALUES(?,?,?,?)",
+                       (g.user["id"], f"app_reject:{app_id}", reason[:2000], now()))
+            db.commit()
+            _mail_review(app_id, approved=False)
+            flash(f"ไม่อนุมัติใบสมัคร {ap['app_no'] or ''} ของ {ap['lab_name']} และแจ้งเหตุผลให้ห้องปฏิบัติการแล้ว", "ok")
+        return redirect(request.referrer or url_for("planning", year=ap["year_be"]))
+
     def _notify_leads(lab_name, app_no, year_be):
         rows = get_db().execute("SELECT * FROM users WHERE role IN ('lead','admin') AND active=1 AND email IS NOT NULL").fetchall()
         for u in rows:
@@ -1241,7 +1291,7 @@ def register(app):
         lab = db.execute("SELECT * FROM labs WHERE id=?", (lab_id,)).fetchone() if lab_id else None
         if lab and not (is_lab_member(lab["id"]) or is_staff()):
             abort(403)
-        editable = (not ap or ap["status"] in ("draft", "pending")) and (not lab or is_lab_member(lab["id"]) or is_lead())
+        editable = (not ap or ap["status"] in ("draft", "pending", "rejected")) and (not lab or is_lab_member(lab["id"]) or is_lead())
         if request.method == "POST":
             if not editable:
                 flash("ใบสมัครนี้อนุมัติแล้ว แก้ไขไม่ได้", "error")
@@ -1272,7 +1322,7 @@ def register(app):
                 if dup:
                     app_id = dup["id"]
                     ap = _load_application(app_id)
-                    if ap["status"] not in ("draft", "pending"):
+                    if ap["status"] not in ("draft", "pending", "rejected"):
                         db.commit()
                         flash(f"ห้องนี้มีใบสมัครปี {year_be} ที่ดำเนินการแล้ว", "error")
                         return redirect(url_for("lab_apply", app_id=app_id))
@@ -1297,6 +1347,7 @@ def register(app):
                                   (app_id,)).fetchone()["n"]
             submit = request.form.get("action") == "submit"
             status = ap["status"] if ap else "draft"
+            resubmit = False
             if submit:
                 errs = fm001.validate(d, n_survey)
                 if errs:
@@ -1305,11 +1356,20 @@ def register(app):
                     db.commit()
                     flash("บันทึกร่างแล้ว แต่ยังส่งไม่ได้ — กรุณากรอก: " + " · ".join(errs), "error")
                     return redirect(url_for("lab_apply", app_id=app_id))
+                resubmit = status == "rejected"
                 status = "pending"
                 _auto_app_no(app_id, year_be)
+                if resubmit:
+                    db.execute("INSERT INTO audit_log(user_id,action,detail,created_at) VALUES(?,?,?,?)",
+                               (g.user["id"], f"app_resubmit:{app_id}", "", now()))
             db.execute("UPDATE applications SET form=?, status=?, updated_at=?, submitted_at=COALESCE(submitted_at, ?) WHERE id=?",
                        (json.dumps(d, ensure_ascii=False), status, now(), now() if submit else None, app_id))
             db.commit()
+            if submit and resubmit:
+                app_no = db.execute("SELECT app_no FROM applications WHERE id=?", (app_id,)).fetchone()["app_no"]
+                _notify_leads(d["name"] + " (ส่งใหม่หลังแก้ไข)", app_no, year_be)
+                flash("ส่งใบสมัครที่แก้ไขแล้วอีกครั้ง — รอหัวหน้าผู้ตรวจพิจารณา", "ok")
+                return redirect(url_for("lab_apply", app_id=app_id))
             if submit:
                 flash(f"ส่งใบสมัคร FM-001 ปี {year_be} แล้ว — พิมพ์ใบสมัคร ให้ผู้มีอำนาจลงนาม แล้วแนบไฟล์ที่ลงนามกลับเข้าระบบ", "ok")
                 return redirect(url_for("lab_apply", app_id=app_id))
@@ -1381,7 +1441,7 @@ def register(app):
         if not f:
             abort(404)
         ap = _load_application(f["application_id"])
-        if not is_lead() and (ap["status"] not in ("draft", "pending") and f["kind"] != "signed"):
+        if not is_lead() and (ap["status"] not in ("draft", "pending", "rejected") and f["kind"] != "signed"):
             abort(403)
         storage.delete(f["path"])
         db.execute("DELETE FROM app_files WHERE id=?", (file_id,))
@@ -1499,15 +1559,19 @@ def register(app):
         year = request.values.get("year", type=int) or dbm.datetime.now().year + 543
         if request.method == "POST":
             act = request.form.get("action")
-            if act in ("approve", "reject"):
+            if act == "approve":
                 ids = [int(x) for x in request.form.getlist("app_id")]
+                done = []
                 for i in ids:
-                    db.execute("UPDATE applications SET status=? WHERE id=? AND status IN ('pending','approved','rejected')",
-                               ("approved" if act == "approve" else "rejected", i))
-                    if act == "approve":
+                    n = db.execute("""UPDATE applications SET status='approved', reviewed_at=?, reviewed_by=?
+                                      WHERE id=? AND status IN ('pending','rejected')""", (now(), g.user["id"], i)).rowcount
+                    if n:
                         db.execute("UPDATE labs SET status='approved' WHERE id=(SELECT lab_id FROM applications WHERE id=?)", (i,))
+                        done.append(i)
                 db.commit()
-                flash(f"{'อนุมัติ' if act == 'approve' else 'ไม่อนุมัติ'} {len(ids)} ใบสมัคร", "ok")
+                for i in done:
+                    _mail_review(i, approved=True)
+                flash(f"อนุมัติ {len(done)} ใบสมัคร และแจ้งห้องปฏิบัติการทางอีเมลแล้ว", "ok")
             elif act == "team_size":
                 db.execute("INSERT INTO settings(key,value) VALUES('team_size',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                            (str(max(1, min(7, request.form.get("team_size", type=int) or 3))),))
