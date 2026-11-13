@@ -22,7 +22,7 @@
   <nav class="nav" id="nav">
     {% if g.user.role == 'lab' %}
     <a href="{{ url_for('lab_home') }}" class="{{ 'on' if request.endpoint in ('lab_home','lab_audit') }}">ห้องปฏิบัติการของฉัน</a>
-    <a href="{{ url_for('lab_register') }}" class="{{ 'on' if request.endpoint=='lab_register' }}">+ ลงทะเบียนห้อง</a>
+    <a href="{{ url_for('lab_apply') }}" class="{{ 'on' if request.endpoint=='lab_apply' }}">+ สมัครรับการตรวจ (FM-001)</a>
     {% else %}
     <a href="{{ url_for('dashboard') }}" class="{{ 'on' if request.endpoint=='dashboard' }}">ภาพรวม</a>
     {% if is_lead() %}

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>FM-001_{{ d.name or ap.lab_name }}_{{ ap.year_be }}</title>
+<style>
+@font-face{font-family:"Plex Thai";font-weight:400;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-thai-400-normal.woff2') }}) format("woff2");unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:"Plex Thai";font-weight:400;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-latin-400-normal.woff2') }}) format("woff2");unicode-range:U+0000-00FF,U+2000-206F,U+2610-2612}
+@font-face{font-family:"Plex Thai";font-weight:600;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-thai-600-normal.woff2') }}) format("woff2");unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:"Plex Thai";font-weight:600;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-latin-600-normal.woff2') }}) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Plex Thai";font-weight:700;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-thai-700-normal.woff2') }}) format("woff2");unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:"Plex Thai";font-weight:700;src:url({{ url_for('static', filename='fonts/ibm-plex-sans-thai-latin-700-normal.woff2') }}) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+:root{--navy:#14213d;--orange:#e8711a;--ink:#111827;--ink3:#6b7280;--line:#9aa3b5;--fill:#0b3a8f}
+@page{size:A4;margin:0}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html{background:#e9ecf2}
+body{margin:0;font-family:"Plex Thai","Sarabun","Tahoma",sans-serif;color:var(--ink);font-size:10.6pt;line-height:1.62}
+.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--navy);color:#fff}
+.toolbar a,.toolbar button,.toolbar label{font:inherit;font-size:14px;color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:8px 14px;text-decoration:none;cursor:pointer;line-height:1.3}
+.toolbar .pri{background:var(--orange);border-color:var(--orange);font-weight:600}
+.toolbar .sp{flex:1}
+.toolbar small{opacity:.85}
+.toolbar .ok{background:#15803d;border-color:#15803d}
+.sheet{width:210mm;min-height:297mm;margin:16px auto;background:#fff;box-shadow:0 10px 40px rgba(20,30,60,.18);padding:11mm 15mm 9mm 17mm;display:flex;flex-direction:column;break-after:page;position:relative}
+.sheet:last-child{break-after:auto}
+.head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:4px}
+.logos{display:flex;gap:10px;align-items:center;grid-column:2;justify-content:center}
+.logos img{height:21mm;width:auto}
+.staff{grid-column:3;justify-self:end;align-self:start;border:1px solid #333;padding:4px 8px;font-size:8.6pt;line-height:1.5;min-width:44mm}
+.staff b{display:block;font-weight:600}
+.title{text-align:center;font-weight:700;font-size:13.2pt;margin:4px 0 6px;color:var(--navy);line-height:1.4}
+.f{display:inline-block;min-width:var(--w,30mm);border-bottom:1px dotted #555;padding:0 4px;color:var(--fill);font-weight:600;line-height:1.35;vertical-align:baseline;text-align:left}
+.f.c{text-align:center}
+.f.grow{flex:1;min-width:0}
+.row{display:flex;gap:6px;align-items:baseline;margin:2.2mm 0}
+.row .lbl{white-space:nowrap}
+.ck{display:inline-flex;align-items:center;gap:5px;margin-right:14px;white-space:nowrap}
+.box{width:3.6mm;height:3.6mm;border:1.2px solid #222;display:inline-grid;place-items:center;font-size:9pt;line-height:1;color:var(--fill);font-weight:700;position:relative;top:.4mm}
+.acts{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;gap:1mm 10mm;margin:1mm 0 0 7mm}
+.ind{margin-left:7mm}
+table.sc{border-collapse:collapse;margin:1.5mm auto 1mm;width:118mm;font-size:9.6pt;line-height:1.3}
+.sc th,.sc td{border:1px solid #444;padding:.5mm 3mm;text-align:center}
+.sc th{background:#eef1f7;font-weight:600}
+.sc td.v{color:var(--fill);font-weight:600;font-variant-numeric:tabular-nums}
+.sc tr.tot td{font-weight:700;background:#f7f8fb}
+.foot{margin-top:auto;display:flex;justify-content:space-between;font-size:8.4pt;color:#444;padding-top:3mm}
+.foot .r{text-align:right;line-height:1.35}
+.note{font-size:8.6pt;color:#555;margin:0 0 2mm 7mm}
+.commit{margin:.8mm 0 0 7mm;display:flex;gap:3mm;line-height:1.5}
+.sign{margin:5mm 0 2mm auto;width:104mm;text-align:center;line-height:1.95}
+.sign .f{--w:66mm;font-size:9.8pt}
+.notes{font-size:8.8pt;line-height:1.45;border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm}
+.notes ol{margin:0;padding-left:6mm}
+.qr{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm;margin:2.5mm 0 2.5mm;text-align:center;font-size:8.2pt;line-height:1.3}
+.qr img{width:21mm;height:21mm;display:block;margin:0 auto 1.5mm}
+.ret{background:#fff6c7;border:1px solid #e6cf62;border-radius:2mm;padding:1.8mm 4mm;font-size:9pt;line-height:1.5;text-align:center}
+.files{max-width:210mm;margin:0 auto 30px;background:#fff;border-radius:12px;padding:14px 18px;font-size:14px}
+.files a{color:#3651c9}
+@media screen and (max-width:820px){
+  .sheet{transform-origin:top left}
+  .toolbar .sp{order:-1;flex-basis:100%}
+  .toolbar a,.toolbar button,.toolbar label{padding:7px 10px;font-size:13px}
+}
+@media print{
+  html,body{background:#fff}
+  .toolbar,.files,.noprint{display:none!important}
+  .sheet{margin:0;box-shadow:none;width:210mm;height:297mm;min-height:0;overflow:hidden}
+}
+</style>
+</head>
+<body>
+{% macro F(v, w='30mm', c=false, grow=false) -%}<span class="f{{ ' c' if c }}{{ ' grow' if grow }}" style="--w:{{ w }}">{{ v if v else ' ' }}</span>{%- endmacro %}
+{% macro BOX(on) -%}<span class="box">{{ '✓' if on else '' }}</span>{%- endmacro %}
+{% set sub = ap.submitted_at %}
+{% set sdate = thai_date(sub).split(' ') if sub else ['', '', ''] %}
+{% set pages = 2 %}
+<div class="toolbar">
+  <a href="{{ url_for('lab_apply', app_id=ap.id) }}">← กลับไปที่ใบสมัคร</a>
+  <span class="sp"><b>ใบสมัคร FM-001</b> <small>· {{ d.name or ap.lab_name }} · ปี {{ ap.year_be }}</small></span>
+  {% if ap.status == 'draft' %}<small>⚠ ยังเป็นร่าง — ส่งใบสมัครก่อนพิมพ์ฉบับจริง</small>{% endif %}
+  <button class="pri" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
+  <form method="post" action="{{ url_for('application_signed', app_id=ap.id) }}" enctype="multipart/form-data" style="margin:0">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label class="{{ 'ok' if files.get('signed') }}">📎 {{ 'แนบฉบับลงนามเพิ่ม' if files.get('signed') else 'แนบฉบับที่ลงนามแล้ว' }}<input type="file" name="file_signed" accept="image/*,application/pdf" multiple hidden onchange="this.form.submit()"></label>
+  </form>
+</div>
+
+<!-- ================= หน้า 1 ================= -->
+<section class="sheet">
+  <div class="head">
+    <div class="logos">
+      <img src="{{ url_for('static', filename='img/fm001/logo_nrct.jpg') }}" alt="วช.">
+      <img src="{{ url_for('static', filename='img/fm001/logo_nu.png') }}" alt="มน.">
+      <img src="{{ url_for('static', filename='img/fm001/logo_esprel_nu.png') }}" alt="ESPReL NU">
+    </div>
+    <div class="staff"><b>สำหรับเจ้าหน้าที่</b>เลขที่ใบสมัคร {{ F(ap.app_no, '22mm', true) }}</div>
+  </div>
+  <div class="title">ใบสมัครรับการตรวจประเมินความปลอดภัยในห้องปฏิบัติการ<br>(ESPReL Checklist)</div>
+
+  <div class="row" style="justify-content:flex-end">
+    <span class="lbl">วันที่ยื่นใบสมัคร วันที่</span>{{ F(sdate[0], '12mm', true) }}
+    <span class="lbl">เดือน</span>{{ F(sdate[1], '28mm', true) }}
+    <span class="lbl">พ.ศ.</span>{{ F(sdate[2], '16mm', true) }}
+  </div>
+  <div class="row">
+    <span class="ck">{{ BOX(d.first_time != '0') }} ขอรับการตรวจประเมินครั้งแรก</span>
+    <span class="ck">{{ BOX(d.first_time == '0') }} ขอรับการตรวจประเมินฯ ล่าสุดเมื่อ</span>{{ F(d.last_assessed if d.first_time == '0' else '', '40mm', grow=true) }}
+  </div>
+
+  <div class="row"><span class="lbl">1. ชื่อห้องปฏิบัติการ</span>{{ F(d.name, grow=true) }}</div>
+  <div class="row"><span class="lbl">2. ภาควิชา/แผนก</span>{{ F(d.department, grow=true) }}</div>
+  <div class="row"><span class="lbl">3. คณะ/สถาบัน/ศูนย์/หน่วยงาน</span>{{ F(d.faculty, grow=true) }}</div>
+  <div class="row"><span class="lbl">4. มหาวิทยาลัย/องค์กร</span>{{ F(d.organization, grow=true) }}</div>
+  <div class="row"><span class="lbl">5. โทรศัพท์</span>{{ F(d.phone, grow=true) }}<span class="lbl">โทรสาร</span>{{ F(d.fax, grow=true) }}</div>
+  <div class="row"><span class="lbl">6. ชื่อหัวหน้าห้องปฏิบัติการ</span>{{ F(d.head_name, grow=true) }}</div>
+  <div class="row"><span class="lbl">7. เลขทะเบียนห้องปฏิบัติการ (ในระบบ ESPReL Checklist)</span>{{ F(d.espre_no, grow=true) }}</div>
+
+  <div class="row" style="margin-bottom:0"><span class="lbl">8. ห้องปฏิบัติการได้มีการดำเนินงานต่าง ๆ ดังนี้ (เลือกได้มากกว่า 1 ข้อ)</span></div>
+  {% set acts = d.activities or [] %}
+  <div class="acts">
+    {% for k, label in fm.ACTIVITIES if k != 'other' %}<span class="ck">{{ BOX(k in acts) }} {{ label }}</span>{% endfor %}
+  </div>
+  <div class="row ind"><span class="ck" style="margin-right:4px">{{ BOX('other' in acts) }} อื่น ๆ (อธิบายเพิ่มเติมสั้น ๆ)</span>{{ F(d.activities_other, grow=true) }}</div>
+
+  <div class="row" style="margin-bottom:0"><span class="lbl">9. ขอบเขตสถานที่ในการตรวจประเมิน (ระบุชื่อห้องปฏิบัติการ/ชั้น/อาคาร หรือกลุ่มของห้องปฏิบัติการที่จะตรวจประเมิน)</span></div>
+  <div class="row ind">{{ F(d.scope, grow=true) }}</div>
+  <div class="row"><span class="lbl">10. จำนวนบุคลากรที่ปฏิบัติงานในห้องปฏิบัติการ</span>{{ F(d.staff_count, '24mm', true) }}<span class="lbl">คน</span></div>
+  <div class="row" style="margin-bottom:0"><span class="lbl">11. การรับรองมาตรฐาน</span></div>
+  <div class="row ind"><span class="ck">{{ BOX(d.certified == '0') }} ไม่เคยได้รับการรับรองมาตรฐาน</span></div>
+  <div class="row ind"><span class="ck" style="margin-right:4px">{{ BOX(d.certified == '1') }} ได้รับการรับรองมาตรฐาน (ระบุชื่อมาตรฐานและหน่วยงานที่รับรองมาตรฐาน)</span></div>
+  <div class="row ind">{{ F(d.cert_detail if d.certified == '1' else '', grow=true) }}</div>
+
+  <div class="foot"><span>หน้าที่ 1/{{ pages }}</span><span class="r">{{ s.fm_revision }}<br>{{ s.fm_rev_date }}</span></div>
+</section>
+
+<!-- ================= หน้า 2 ================= -->
+<section class="sheet">
+  {% set scores = d.scores or fm.blank_scores() %}
+  <div class="row"><span class="lbl">12. ผลการสำรวจ* สภาพความปลอดภัยของห้องปฏิบัติการ ครั้งล่าสุด เดือน</span>{{ F(d.survey_month, '26mm', true) }}<span class="lbl">พ.ศ.</span>{{ F(d.survey_year, '16mm', true) }}</div>
+  <table class="sc">
+    <thead><tr><th>องค์ประกอบ</th><th>คะแนน</th><th>คิดเป็นร้อยละ</th></tr></thead>
+    <tbody>
+    {% for i in range(1, 8) %}{% set sc = scores[i|string] %}
+      <tr><td>{{ i }}</td><td class="v">{{ sc.score }}</td><td class="v">{{ sc.pct }}</td></tr>
+    {% endfor %}
+      <tr class="tot"><td>คะแนนรวม</td><td class="v">{{ scores.total.score }}</td><td class="v">{{ scores.total.pct }}</td></tr>
+    </tbody>
+  </table>
+  <div class="note">* ให้แนบผลการสำรวจสภาพความปลอดภัยห้องปฏิบัติการ (ESPReL Checklist) ในระบบของ วช. มาพร้อมใบสมัคร</div>
+
+  <div class="row" style="margin-bottom:0"><span class="lbl">13. ผู้ประสานงาน</span></div>
+  <div class="row ind"><span class="lbl">ชื่อ</span>{{ F(d.coord_name, grow=true) }}<span class="lbl">ตำแหน่ง</span>{{ F(d.coord_position, grow=true) }}</div>
+  <div class="row ind"><span class="lbl">โทรศัพท์</span>{{ F(d.coord_phone, grow=true) }}<span class="lbl">โทรสาร</span>{{ F(d.coord_fax, grow=true) }}</div>
+  <div class="row ind"><span class="lbl">อีเมล์</span>{{ F(d.coord_email, grow=true) }}<span class="lbl">ID Line</span>{{ F(d.coord_line, grow=true) }}</div>
+
+  <div class="row" style="margin:3mm 0 0"><b>คำรับรอง</b>&nbsp;ห้องปฏิบัติการที่ขอรับการประเมินต้องปฏิบัติดังต่อไปนี้</div>
+  {% for c in fm.COMMITMENTS %}
+  <div class="commit">{{ BOX(loop.index in (d.commits or [])) }}<span>{{ loop.index }}. {{ c }}</span></div>
+  {% endfor %}
+
+  <div class="sign">
+    ลงชื่อ{{ F('', '66mm') }}ผู้มีอำนาจลงนาม<br>
+    ({{ F(d.signer_name, '66mm', true) }})<br>
+    ตำแหน่ง {{ F(d.signer_position, '80mm', true) }}
+  </div>
+
+  <div class="notes">
+    <b>หมายเหตุ</b>
+    <ol>
+      <li>ผู้มีอำนาจลงนาม หมายถึง หัวหน้าส่วนงาน/คณบดี/ผู้อำนวยการ/ผู้ที่ได้รับมอบอำนาจ</li>
+      <li>ห้องปฏิบัติการต้องลงทะเบียนในระบบ ESPReL Checklist ของ วช. ที่ {{ fm.NRCT_REGISTER_URL }} สำรวจสภาพความปลอดภัยของห้องปฏิบัติการให้เป็นปัจจุบัน และแนบผลการสำรวจมาพร้อมใบสมัคร</li>
+    </ol>
+  </div>
+  <div class="qr">
+    <div><img src="{{ url_for('static', filename='img/fm001/qr_register.png') }}" alt="">ลงทะเบียนในระบบ<br>ESPReL Checklist</div>
+    <div><img src="{{ url_for('static', filename='img/fm001/qr_manual.png') }}" alt="">คู่มือการใช้งานเว็บไซต์ ESPReL CHECKLIST<br>: สำหรับผู้ใช้งาน</div>
+    <div><img src="{{ url_for('static', filename='img/fm001/qr_download.png') }}" alt="">Download ใบสมัคร</div>
+  </div>
+  {% if s.fm_return_note %}<div class="ret">{{ s.fm_return_note }}</div>{% endif %}
+
+  <div class="foot"><span>หน้าที่ 2/{{ pages }}</span><span class="r">{{ s.fm_revision }}<br>{{ s.fm_rev_date }}</span></div>
+</section>
+
+<div class="files noprint">
+  <b>ไฟล์แนบของใบสมัครนี้</b>
+  {% for kind, label in fm.FILE_KINDS.items() %}
+  <div style="margin-top:6px"><span style="color:#6b7280">{{ label }}:</span>
+    {% for f in files.get(kind, []) %}<a href="{{ url_for('application_file', file_id=f.id) }}" target="_blank">{{ f.filename }}</a>{{ ' · ' if not loop.last }}{% else %}<span style="color:#b45309">ยังไม่มี</span>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+<script>
+// ย่อแผ่นงาน A4 ให้พอดีหน้าจอมือถือ (ไม่กระทบการพิมพ์)
+(function () {
+  function fit() {
+    var w = document.documentElement.clientWidth, sheets = document.querySelectorAll('.sheet');
+    var px = 210 * 96 / 25.4, k = Math.min(1, (w - 16) / px);
+    sheets.forEach(function (s) {
+      s.style.transform = k < 1 ? 'scale(' + k + ')' : '';
+      s.style.marginLeft = k < 1 ? '8px' : '';
+      s.style.marginBottom = k < 1 ? (-(1 - k) * s.offsetHeight + 12) + 'px' : '';
+    });
+  }
+  window.addEventListener('resize', fit); window.addEventListener('beforeprint', function () {
+    document.querySelectorAll('.sheet').forEach(function (s) { s.style.transform = ''; s.style.marginLeft = ''; s.style.marginBottom = ''; });
+  });
+  window.addEventListener('afterprint', fit); fit();
+})();
+</script>
+</body>
+</html>

@@ -26,17 +26,24 @@
       <button class="btn sm danger" name="action" value="reject">ไม่อนุมัติ</button></div></div>
   <div class="tbl-wrap"><table class="tbl">
     <thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('.apc').forEach(c=>c.checked=this.checked)" style="width:18px;height:18px"></th>
-      <th>ห้องปฏิบัติการ</th><th>คณะ/หน่วยงาน</th><th>ผู้ติดต่อ</th><th>สถานะ</th></tr></thead>
+      <th>เลขที่</th><th>ห้องปฏิบัติการ</th><th>คณะ/หน่วยงาน</th><th>ผู้ติดต่อ</th><th>ใบสมัคร FM-001</th><th>สถานะ</th></tr></thead>
     <tbody>{% for ap in apps %}
       <tr><td>{% if ap.status in ('pending','approved','rejected') %}<input type="checkbox" class="apc" name="app_id" value="{{ ap.id }}" style="width:18px;height:18px">{% endif %}</td>
-        <td><b>{{ ap.lab_name }}</b><br><small class="muted">{{ ap.espre_no or '' }}{% if ap.note %} · {{ ap.note }}{% endif %}</small></td>
+        <td><input form="no-{{ ap.id }}" name="app_no" value="{{ ap.app_no or '' }}" placeholder="—" style="width:96px;min-height:36px;padding:4px 8px" onchange="this.form.submit()" aria-label="เลขที่ใบสมัคร"></td>
+        <td><b>{{ ap.lab_name }}</b><br><small class="muted">{{ ap.espre_no or '' }}{% if ap.note %} · {{ ap.note }}{% endif %}{% if ap.submitted_at %} · ยื่น {{ thai_date(ap.submitted_at, True) }}{% endif %}</small></td>
         <td>{{ ap.faculty or '' }}</td>
         <td style="font-size:.85rem">{{ ap.head_name or ap.applicant or '' }}<br><small class="muted">{{ ap.phone or '' }} {{ ap.email or '' }}</small></td>
+        <td style="font-size:.85rem;white-space:nowrap">
+          {% if ap.form %}<a href="{{ url_for('lab_apply', app_id=ap.id) }}">📝 ข้อมูล</a> · <a href="{{ url_for('application_print', app_id=ap.id) }}" target="_blank">🖨 FM-001</a><br>{% else %}<span class="muted">— (สมัครแบบเดิม)</span><br>{% endif %}
+          <span class="{{ 'lv-good' if ap.n_survey else 'warn-txt' }}">{{ '✓' if ap.n_survey else '⚠' }} ผลสำรวจ</span> ·
+          <span class="{{ 'lv-good' if ap.n_signed else 'warn-txt' }}">{{ '✓' if ap.n_signed else '⚠' }} ฉบับลงนาม</span></td>
         <td><span class="badge {{ APP_STATUS_TH[ap.status][1] }}">{{ APP_STATUS_TH[ap.status][0] }}</span>
           {% if ap.audit_id %}<a href="{{ url_for('audit_view', audit_id=ap.audit_id) }}" style="font-size:.82rem">ดูการตรวจ →</a>{% endif %}</td></tr>
-    {% else %}<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">ยังไม่มีใบสมัครปี {{ year }} — ห้องปฏิบัติการสมัครได้ที่เมนู “ลงทะเบียนห้อง” หลังเข้าสู่ระบบ</td></tr>{% endfor %}</tbody>
+    {% else %}<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">ยังไม่มีใบสมัครปี {{ year }} — ห้องปฏิบัติการสมัครได้ที่เมนู “สมัครรับการตรวจ (FM-001)” หลังเข้าสู่ระบบ</td></tr>{% endfor %}</tbody>
   </table></div>
+  {% if n_draft %}<p class="hint" style="margin-bottom:0">มีใบสมัครที่ห้องปฏิบัติการบันทึกร่างไว้แต่ยังไม่ส่ง {{ n_draft }} รายการ (ไม่แสดงในตาราง)</p>{% endif %}
 </form>
+{% for ap in apps %}<form id="no-{{ ap.id }}" method="post" action="{{ url_for('application_number', app_id=ap.id) }}"></form>{% endfor %}
 
 {# ---------- team proposal ---------- #}
 <div class="card" style="margin-bottom:14px">

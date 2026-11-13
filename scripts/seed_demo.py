@@ -58,9 +58,17 @@ for e in range(1, 8):
     aud.post(f"/api/audit/{aid}/round/2/element/{e}/done", json={"done": True})
 lead.post(f"/audit/{aid}/round/2/report", data={"report_date": "2026-07-31"})
 # ใบสมัครตัวอย่างปีถัดไป
-lab.post("/lab/register", data={"name": "ห้องปฏิบัติการจุลชีววิทยาดิน AG 3105", "espre_no": "", "faculty":
-         "คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม", "head_name": "หัวหน้าห้องปฏิบัติการ (ตัวอย่าง)",
-         "apply": "1", "year_be": "2570"})
+import io  # noqa: E402
+import fm001  # noqa: E402
+
+
+def apply_fm001(name, fac, espre=""):
+    d = fm001.example_form(name, fac, espre, head_name="หัวหน้าห้องปฏิบัติการ (ตัวอย่าง)")
+    d["file_survey"] = (io.BytesIO(b"%PDF-1.4 demo survey"), "ESPReL-survey.pdf", "application/pdf")
+    lab.post("/lab/apply", data=d, content_type="multipart/form-data")
+
+
+apply_fm001("ห้องปฏิบัติการจุลชีววิทยาดิน AG 3105", "คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม", "2-0100-0201-0")
 print("demo audit", aid)
 admin = login("admin", "admin1234")
 for u, n, r, fac in [("prasert", "รศ.ดร.ประเสริฐ (ตัวอย่าง)", "lead", "คณะวิศวกรรมศาสตร์"),
@@ -70,8 +78,7 @@ for u, n, r, fac in [("prasert", "รศ.ดร.ประเสริฐ (ตั
 for name, fac in [("ห้องปฏิบัติการเคมีวิเคราะห์ SC 2201", "คณะวิทยาศาสตร์"),
                   ("ห้องปฏิบัติการวิศวกรรมสิ่งแวดล้อม EN 4102", "คณะวิศวกรรมศาสตร์"),
                   ("ห้องปฏิบัติการเภสัชเคมี PH 3304", "คณะเภสัชศาสตร์")]:
-    lab.post("/lab/register", data={"name": name, "faculty": fac, "head_name": "หัวหน้าห้อง (ตัวอย่าง)",
-                                    "apply": "1", "year_be": "2570"})
+    apply_fm001(name, fac)
 d = DB()
 ids = [r["id"] for r in d.execute("SELECT id FROM applications WHERE year_be=2570").fetchall()]
 d.close()

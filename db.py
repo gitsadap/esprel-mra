@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS labs(
   contact TEXT,
   phone TEXT,
   email TEXT,
+  department TEXT,
+  organization TEXT,
+  fax TEXT,
   owner_user_id INTEGER REFERENCES users(id),
   status TEXT NOT NULL DEFAULT 'approved',
   created_at TEXT
@@ -85,7 +88,22 @@ CREATE TABLE IF NOT EXISTS applications(
   audit_id INTEGER REFERENCES audits(id) ON DELETE SET NULL,
   created_by INTEGER REFERENCES users(id),
   created_at TEXT,
+  app_no TEXT,
+  form TEXT,
+  submitted_at TEXT,
+  updated_at TEXT,
   UNIQUE(lab_id, year_be)
+);
+CREATE TABLE IF NOT EXISTS app_files(
+  id {PK},
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  path TEXT NOT NULL,
+  filename TEXT,
+  content_type TEXT,
+  size INTEGER,
+  uploaded_by INTEGER,
+  created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS audit_team(
   audit_id INTEGER NOT NULL REFERENCES audits(id) ON DELETE CASCADE,
@@ -174,7 +192,7 @@ CREATE INDEX IF NOT EXISTS ix_log_audit ON audit_log(audit_id);
 CREATE INDEX IF NOT EXISTS ix_audits_year ON audits(year_be);
 """
 
-TABLES = ["users", "labs", "lab_members", "audits", "applications", "audit_team", "assignments", "responses",
+TABLES = ["users", "labs", "lab_members", "audits", "applications", "app_files", "audit_team", "assignments", "responses",
           "capa", "attachments", "element_status", "reports", "audit_log", "settings"]
 
 
@@ -202,6 +220,11 @@ DEFAULT_SETTINGS = {
     "next_steps_r2": "",
     "qr_image": "",
     "team_size": "3",
+    "fm_return_note": ("กรุณาส่งกลับมาที่คุณวิภาดา บุญส่งแท้ กองการวิจัยและนวัตกรรม มหาวิทยาลัยนเรศวร "
+                       "อีเมล wiphadab@nu.ac.th ภายในวันที่ 9 มกราคม 2569 หากมีข้อสงสัยติดต่อได้ที่ "
+                       "โทรศัพท์ 05 596 8640 หรือ 083 539 5453"),
+    "fm_revision": "FM-001 Rev.08",
+    "fm_rev_date": "Date: 6/01/2568",
 }
 
 
@@ -287,6 +310,24 @@ def close_db(_e=None):
         db.close()
 
 
+# คอลัมน์ที่เพิ่มภายหลัง — เพิ่มให้ฐานข้อมูลเดิมอัตโนมัติ
+LATER_COLUMNS = [
+    ("applications", "app_no", "TEXT"), ("applications", "form", "TEXT"),
+    ("applications", "submitted_at", "TEXT"), ("applications", "updated_at", "TEXT"),
+    ("labs", "department", "TEXT"), ("labs", "organization", "TEXT"), ("labs", "fax", "TEXT"),
+]
+
+
+def _ensure_columns(db):
+    for table, col, typ in LATER_COLUMNS:
+        if IS_PG:
+            db.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
+        else:
+            cols = {r["name"] for r in db.execute(f"PRAGMA table_info({table})").fetchall()}
+            if col not in cols:
+                db.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+
+
 def init_db(force=False):
     """สร้างตาราง (SQLite อัตโนมัติ / Postgres เมื่อ AUTO_MIGRATE=1 หรือสั่ง flask init-db) และข้อมูลตั้งต้น"""
     db = DB()
@@ -300,6 +341,7 @@ def init_db(force=False):
                     db.con.execute("PRAGMA journal_mode = DELETE")
                 except sqlite3.DatabaseError:
                     pass
+            _ensure_columns(db)
             db.commit()
         for k, v in DEFAULT_SETTINGS.items():
             db.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING", (k, v))

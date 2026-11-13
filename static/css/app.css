@@ -90,7 +90,7 @@ small,.muted{color:var(--ink-3)}
 .btn[disabled]{opacity:.5;pointer-events:none}
 label{font-size:.9rem;color:var(--ink-2);font-weight:500}
 .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
-input[type=text],input[type=password],input[type=date],input[type=number],input[type=search],select,textarea{
+input[type=text],input[type=password],input[type=date],input[type=number],input[type=search],input[type=tel],input[type=email],input[type=file],select,textarea{
   font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;min-height:var(--tap);width:100%}
 textarea{min-height:84px;resize:vertical;line-height:1.5}
 input:focus,select:focus,textarea:focus{outline:3px solid rgba(54,81,201,.18);border-color:var(--primary)}
@@ -400,3 +400,18 @@ body.present{background:#0f172a}
 .el-pick{display:grid;grid-template-columns:repeat(7,minmax(64px,1fr));gap:4px;min-width:470px}
 .el-pick label{font-size:.72rem;text-align:center;color:var(--ink-3)}
 .el-pick select{font-size:.78rem;padding:4px;min-height:32px}
+
+/* ---------- FM-001 ใบสมัคร */
+.check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.check-chip,.radio-chip{display:flex;align-items:center;gap:8px;min-height:var(--tap);padding:8px 12px;border:1px solid var(--line-2);
+  border-radius:11px;background:#fff;cursor:pointer;font-size:.93rem;user-select:none}
+.check-chip:has(input:checked),.radio-chip:has(input:checked){border-color:var(--primary);background:var(--primary-soft);color:var(--primary-ink);font-weight:600}
+.check-chip input,.radio-chip input,.commit input{width:20px;height:20px;accent-color:var(--primary);flex:none;margin:0}
+.seg:has(.radio-chip){background:transparent;padding:0;gap:8px}
+.commit{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px;cursor:pointer;background:#fff}
+.commit:has(input:checked){border-color:var(--good);background:var(--good-soft)}
+.commit input{margin-top:3px}
+#scoretbl input{width:100%;min-width:70px;text-align:right}
+#scoretbl tr.total td{font-weight:700;background:var(--surface-2)}
+.app-list{margin-top:12px;display:grid;gap:8px}
+.app-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}

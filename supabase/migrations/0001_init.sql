@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS labs(
   contact TEXT,
   phone TEXT,
   email TEXT,
+  department TEXT,
+  organization TEXT,
+  fax TEXT,
   owner_user_id INTEGER REFERENCES users(id),
   status TEXT NOT NULL DEFAULT 'approved',
   created_at TEXT
@@ -61,7 +64,22 @@ CREATE TABLE IF NOT EXISTS applications(
   audit_id INTEGER REFERENCES audits(id) ON DELETE SET NULL,
   created_by INTEGER REFERENCES users(id),
   created_at TEXT,
+  app_no TEXT,
+  form TEXT,
+  submitted_at TEXT,
+  updated_at TEXT,
   UNIQUE(lab_id, year_be)
+);
+CREATE TABLE IF NOT EXISTS app_files(
+  id BIGSERIAL PRIMARY KEY,
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  path TEXT NOT NULL,
+  filename TEXT,
+  content_type TEXT,
+  size INTEGER,
+  uploaded_by INTEGER,
+  created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS audit_team(
   audit_id INTEGER NOT NULL REFERENCES audits(id) ON DELETE CASCADE,
@@ -154,6 +172,7 @@ ALTER TABLE labs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lab_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_team ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE responses ENABLE ROW LEVEL SECURITY;

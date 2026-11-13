@@ -18,9 +18,10 @@ def test_full_workflow(app):
     aud = login(app.test_client(), "auditor1", "audit1234")
 
     # 1) ห้องปฏิบัติการลงทะเบียน + สมัคร
-    r = lab.post("/lab/register", data={"name": "ห้องทดสอบ CH 101", "espre_no": "2-0100-9999-0",
-                                        "faculty": "คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม",
-                                        "head_name": "หัวหน้าห้อง", "apply": "1", "year_be": "2570"})
+    import fm001
+    data = fm001.example_form("ห้องทดสอบ CH 101", "คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม", "2-0100-9999-0")
+    data["file_survey"] = (io.BytesIO(b"%PDF-1.4 survey"), "ผลสำรวจ.pdf", "application/pdf")
+    r = lab.post("/lab/apply", data=data, content_type="multipart/form-data")
     assert r.status_code == 302
     assert "ห้องทดสอบ CH 101" in lab.get("/lab").get_data(as_text=True)
 

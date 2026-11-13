@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}ตั้งค่ารายงาน{% endblock %}
 {% block content %}
-<div class="page-head"><div><div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a></div><h1>ตั้งค่าข้อความในรายงาน</h1></div></div>
+<div class="page-head"><div><div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a></div><h1>ตั้งค่าข้อความในรายงานและใบสมัคร</h1></div></div>
 <form method="post" enctype="multipart/form-data" class="grid g2" style="align-items:start">
   <div class="card">
     <div class="field"><label>ชื่อหน่วยงาน</label><input type="text" name="org_name" value="{{ s.org_name }}"></div>
@@ -17,6 +17,14 @@
     <div class="field"><label>ข้อแนะนำต่อไป – Report 1</label><textarea name="next_steps_r1" style="min-height:200px">{{ s.next_steps_r1 }}</textarea>
       <span class="hint">ใช้ {year} = ปี พ.ศ., {deadline} = กำหนดส่งรายงานการยกระดับ · คำว่า “แบบฟอร์มรายงานการยกระดับ” จะถูกทำเป็นลิงก์อัตโนมัติ</span></div>
     <div class="field"><label>ข้อแนะนำต่อไป – Report 2 (เว้นว่างได้)</label><textarea name="next_steps_r2">{{ s.next_steps_r2 }}</textarea></div>
+    <div class="sep"></div>
+    <h3>ใบสมัคร FM-001</h3>
+    <div class="field"><label>ข้อความกรอบเหลืองท้ายใบสมัคร (ส่งกลับ/ติดต่อ/กำหนดส่ง)</label><textarea name="fm_return_note">{{ s.fm_return_note }}</textarea>
+      <span class="hint">ปรับวันที่กำหนดส่งใบสมัครทุกปี</span></div>
+    <div class="grid g2" style="gap:0 10px">
+      <div class="field"><label>รหัสแบบฟอร์ม/ฉบับที่</label><input type="text" name="fm_revision" value="{{ s.fm_revision }}"></div>
+      <div class="field"><label>วันที่ประกาศใช้</label><input type="text" name="fm_rev_date" value="{{ s.fm_rev_date }}"></div>
+    </div>
     <button class="btn primary">บันทึกการตั้งค่า</button>
   </div>
 </form>

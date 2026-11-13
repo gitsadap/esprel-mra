@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}ใบสมัคร FM-001{% endblock %}
+{% macro inp(name, label, val, ph='', type='text', req=false, cls='') -%}
+<div class="field {{ cls }}"><label>{{ label }}{% if req %} <span class="star">*</span>{% endif %}</label>
+  <input type="{{ type }}" name="{{ name }}" value="{{ val or '' }}" placeholder="{{ ph }}" {{ 'disabled' if not editable }}></div>
+{%- endmacro %}
+{% macro filelist(kind, can_delete) -%}
+  {% for f in files.get(kind, []) %}
+  <div class="row" style="gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">
+    <a class="filechip" href="{{ url_for('application_file', file_id=f.id) }}" target="_blank">{{ '🖼' if f.content_type.startswith('image/') else '📄' }} {{ f.filename }}</a>
+    <small class="muted">{{ thai_date(f.created_at, True) }}</small>
+    {% if can_delete %}<button class="btn sm ghost danger" type="submit" form="del-{{ f.id }}">ลบ</button>{% endif %}
+  </div>
+  {% endfor %}
+{%- endmacro %}
+{% block content %}
+{% set st = ap.status if ap else 'draft' %}
+<div class="page-head">
+  <div style="min-width:0">
+    <div class="crumb"><a href="{{ url_for('lab_home', **({'as':'lab'} if is_staff() else {})) }}">ห้องปฏิบัติการของฉัน</a>{% if is_lead() %} · <a href="{{ url_for('planning', year=year_be) }}">ใบสมัคร & จัดทีม</a>{% endif %}</div>
+    <h1 style="margin-bottom:4px">ใบสมัครรับการตรวจประเมินความปลอดภัยในห้องปฏิบัติการ (ESPReL Checklist)</h1>
+    <div class="muted">แบบฟอร์ม FM-001 Rev.08{% if ap and ap.app_no %} · เลขที่ใบสมัคร <b>{{ ap.app_no }}</b>{% endif %}{% if ap and ap.submitted_at %} · ยื่นเมื่อ {{ thai_date(ap.submitted_at) }}{% endif %}</div>
+  </div>
+  <div class="row">
+    <span class="badge {{ APP_STATUS_TH[st][1] }}">{{ APP_STATUS_TH[st][0] }}</span>
+    {% if ap %}<a class="btn" href="{{ url_for('application_print', app_id=ap.id) }}" target="_blank">🖨 พิมพ์ใบสมัคร FM-001</a>{% endif %}
+  </div>
+</div>
+
+{% if ap and st != 'draft' %}
+<div class="card" style="margin-bottom:14px;border-left:5px solid var(--brand)">
+  <div class="row" style="justify-content:space-between;align-items:flex-start">
+    <div><h3 style="margin-bottom:2px">ขั้นตอนหลังส่งใบสมัคร</h3>
+      <ol style="margin:4px 0 0;padding-left:20px;line-height:1.8">
+        <li>กด “พิมพ์ใบสมัคร FM-001” แล้วให้ผู้มีอำนาจลงนาม (หัวหน้าส่วนงาน/คณบดี/ผู้อำนวยการ/ผู้ได้รับมอบอำนาจ) ลงนาม</li>
+        <li>สแกนหรือถ่ายรูปใบสมัครที่ลงนามแล้ว และแนบด้านล่าง</li>
+        <li>รอหัวหน้าผู้ตรวจอนุมัติและจัดทีมตรวจประเมิน</li>
+      </ol></div>
+    <form method="post" action="{{ url_for('application_signed', app_id=ap.id) }}" enctype="multipart/form-data" class="row" style="align-items:flex-end">
+      <label class="btn photo-btn">📎 แนบใบสมัครที่ลงนามแล้ว<input type="file" name="file_signed" accept="image/*,application/pdf" multiple hidden onchange="this.form.submit()"></label>
+    </form>
+  </div>
+  {% if files.get('signed') %}<div style="margin-top:8px"><b style="font-size:.9rem">ใบสมัครที่ลงนามแล้ว</b>{{ filelist('signed', true) }}</div>
+  {% else %}<div class="warn-txt" style="margin-top:8px">⚠ ยังไม่ได้แนบใบสมัครที่ลงนามแล้ว</div>{% endif %}
+</div>
+{% endif %}
+
+{% if not editable %}<div class="locked-note">🔒 ใบสมัครนี้ได้รับการพิจารณาแล้ว — ดูข้อมูลได้อย่างเดียว</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data" id="fmform">
+{% if lab %}<input type="hidden" name="lab_id" value="{{ lab.id }}">{% endif %}
+
+<div class="card" style="margin-bottom:14px">
+  <div class="grid g3" style="gap:10px;align-items:end">
+    <div class="field"><label>สมัครรับการตรวจประเมินประจำปี (พ.ศ.) <span class="star">*</span></label>
+      <input type="number" name="year_be" value="{{ year_be }}" min="2560" max="2600" {{ 'disabled' if not editable }}></div>
+    <div class="field"><label>วันที่ยื่นใบสมัคร</label>
+      <input type="text" value="{{ thai_date(ap.submitted_at) if ap and ap.submitted_at else 'บันทึกอัตโนมัติเมื่อกดส่ง' }}" disabled></div>
+    <div class="field"><label>สำหรับเจ้าหน้าที่ · เลขที่ใบสมัคร</label>
+      <input type="text" value="{{ ap.app_no if ap and ap.app_no else '—' }}" disabled></div>
+  </div>
+  <div class="seg" role="radiogroup" style="margin-top:4px">
+    <label class="radio-chip"><input type="radio" name="first_time" value="1" {{ 'checked' if d.first_time != '0' }} {{ 'disabled' if not editable }}> ขอรับการตรวจประเมินครั้งแรก</label>
+    <label class="radio-chip"><input type="radio" name="first_time" value="0" {{ 'checked' if d.first_time == '0' }} {{ 'disabled' if not editable }}> เคยขอรับการตรวจประเมินฯ</label>
+  </div>
+  <div class="field" id="lastbox" style="margin-top:10px{{ ';display:none' if d.first_time != '0' }}"><label>ขอรับการตรวจประเมินฯ ล่าสุดเมื่อ</label>
+    <input type="text" name="last_assessed" value="{{ d.last_assessed or '' }}" placeholder="เช่น กรกฎาคม 2568" {{ 'disabled' if not editable }}></div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <h3>ข้อมูลห้องปฏิบัติการ (ข้อ 1–7)</h3>
+  <div class="grid g2" style="gap:0 14px">
+    {{ inp('name', '1. ชื่อห้องปฏิบัติการ', d.name, 'เช่น ห้องปฏิบัติการกลาง AG 2312', req=true) }}
+    {{ inp('department', '2. ภาควิชา/แผนก', d.department) }}
+    <div class="field"><label>3. คณะ/สถาบัน/ศูนย์/หน่วยงาน <span class="star">*</span></label>
+      <input type="text" name="faculty" value="{{ d.faculty or '' }}" list="facs" {{ 'disabled' if not editable }}>
+      <datalist id="facs">{% for f in ['คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม','คณะวิทยาศาสตร์','คณะวิศวกรรมศาสตร์','คณะแพทยศาสตร์','คณะเภสัชศาสตร์','คณะสหเวชศาสตร์','คณะทันตแพทยศาสตร์','คณะวิทยาศาสตร์การแพทย์','คณะพยาบาลศาสตร์','คณะสาธารณสุขศาสตร์','คณะสถาปัตยกรรมศาสตร์ ศิลปะและการออกแบบ','วิทยาลัยพลังงานทดแทนและสมาร์ตกริดเทคโนโลยี'] %}<option value="{{ f }}">{% endfor %}</datalist></div>
+    {{ inp('organization', '4. มหาวิทยาลัย/องค์กร', d.organization, req=true) }}
+    <div class="grid g2" style="gap:0 10px">
+      {{ inp('phone', '5. โทรศัพท์', d.phone, type='tel', req=true) }}
+      {{ inp('fax', 'โทรสาร', d.fax, type='tel') }}
+    </div>
+    {{ inp('head_name', '6. ชื่อหัวหน้าห้องปฏิบัติการ', d.head_name, req=true) }}
+    {{ inp('espre_no', '7. เลขทะเบียนห้องปฏิบัติการ (ในระบบ ESPReL Checklist)', d.espre_no, 'เช่น 2-0100-0163-0', req=true) }}
+  </div>
+  <p class="hint" style="margin:0">ยังไม่มีเลขทะเบียน? ลงทะเบียนในระบบ ESPReL Checklist ของ วช. ที่ <a href="{{ fm.NRCT_REGISTER_URL }}" target="_blank" rel="noopener">labsafety.nrct.go.th</a> และสำรวจสภาพความปลอดภัยให้เป็นปัจจุบันก่อนสมัคร</p>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <h3>8. ห้องปฏิบัติการได้มีการดำเนินงานต่าง ๆ ดังนี้ <small class="muted">(เลือกได้มากกว่า 1 ข้อ)</small> <span class="star">*</span></h3>
+  <div class="check-grid">
+    {% for k, label in fm.ACTIVITIES %}
+    <label class="check-chip"><input type="checkbox" name="act_{{ k }}" value="1" {{ 'checked' if k in (d.activities or []) }} {{ 'disabled' if not editable }} {% if k == 'other' %}id="actOther"{% endif %}> {{ label }}</label>
+    {% endfor %}
+  </div>
+  <div class="field" id="otherbox" style="margin-top:10px{{ ';display:none' if 'other' not in (d.activities or []) }}"><label>อื่น ๆ (อธิบายเพิ่มเติมสั้น ๆ)</label>
+    <input type="text" name="activities_other" value="{{ d.activities_other or '' }}" {{ 'disabled' if not editable }}></div>
+
+  <div class="sep"></div>
+  <div class="field"><label>9. ขอบเขตสถานที่ในการตรวจประเมิน (ชื่อห้องปฏิบัติการ/ชั้น/อาคาร หรือกลุ่มของห้องปฏิบัติการที่จะตรวจประเมิน) <span class="star">*</span></label>
+    <textarea name="scope" placeholder="เช่น ห้อง AG 2312 ชั้น 3 อาคารคณะเกษตรศาสตร์ฯ" {{ 'disabled' if not editable }}>{{ d.scope or '' }}</textarea></div>
+  <div class="grid g2" style="gap:0 14px">
+    <div class="field"><label>10. จำนวนบุคลากรที่ปฏิบัติงานในห้องปฏิบัติการ (คน) <span class="star">*</span></label>
+      <input type="number" min="0" name="staff_count" value="{{ d.staff_count or '' }}" inputmode="numeric" {{ 'disabled' if not editable }}></div>
+    <div class="field"><label>11. การรับรองมาตรฐาน <span class="star">*</span></label>
+      <div class="seg">
+        <label class="radio-chip"><input type="radio" name="certified" value="0" {{ 'checked' if d.certified == '0' }} {{ 'disabled' if not editable }}> ไม่เคยได้รับการรับรองมาตรฐาน</label>
+        <label class="radio-chip"><input type="radio" name="certified" value="1" {{ 'checked' if d.certified == '1' }} {{ 'disabled' if not editable }}> ได้รับการรับรองมาตรฐาน</label>
+      </div></div>
+  </div>
+  <div class="field" id="certbox" {% if d.certified != '1' %}style="display:none"{% endif %}><label>ระบุชื่อมาตรฐานและหน่วยงานที่รับรองมาตรฐาน</label>
+    <input type="text" name="cert_detail" value="{{ d.cert_detail or '' }}" placeholder="เช่น ISO/IEC 17025 โดย สมอ." {{ 'disabled' if not editable }}></div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <h3>12. ผลการสำรวจสภาพความปลอดภัยของห้องปฏิบัติการ <span class="star">*</span></h3>
+  <div class="grid g2" style="gap:0 14px;max-width:520px">
+    <div class="field"><label>ครั้งล่าสุด เดือน</label>
+      <select name="survey_month" {{ 'disabled' if not editable }}><option value="">— เลือก —</option>{% for m in fm.THAI_MONTHS %}<option {{ 'selected' if d.survey_month == m }}>{{ m }}</option>{% endfor %}</select></div>
+    <div class="field"><label>พ.ศ.</label><input type="number" name="survey_year" value="{{ d.survey_year or '' }}" placeholder="{{ this_year }}" {{ 'disabled' if not editable }}></div>
+  </div>
+  <div class="tbl-wrap" style="max-width:560px">
+    <table class="tbl" id="scoretbl">
+      <thead><tr><th>องค์ประกอบ</th><th class="num">คะแนน</th><th class="num">คิดเป็นร้อยละ (%)</th></tr></thead>
+      <tbody>
+      {% for i in range(1,8) %}{% set sc = d.scores[i|string] %}
+        <tr><td>{{ i }} <small class="muted">{{ ELEMENTS[i].short }}</small></td>
+          <td><input type="number" step="any" min="0" name="score_{{ i }}" value="{{ sc.score }}" class="sc-in" inputmode="decimal" {{ 'disabled' if not editable }}></td>
+          <td><input type="number" step="any" min="0" max="100" name="pct_{{ i }}" value="{{ sc.pct }}" inputmode="decimal" {{ 'disabled' if not editable }}></td></tr>
+      {% endfor %}
+        <tr class="total"><td>คะแนนรวม</td><td class="num" id="sumScore">{{ d.scores.total.score }}</td>
+          <td><input type="number" step="any" min="0" max="100" name="pct_total" value="{{ d.scores.total.pct }}" inputmode="decimal" {{ 'disabled' if not editable }}></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="field" style="margin-top:12px"><label>แนบผลการสำรวจสภาพความปลอดภัยห้องปฏิบัติการ (ESPReL Checklist) ในระบบของ วช. <span class="star">*</span> <small class="muted">(PDF หรือรูปภาพ)</small></label>
+    {{ filelist('survey', editable) }}
+    {% if editable %}<input type="file" name="file_survey" accept="application/pdf,image/*" multiple style="padding:10px;border:1px dashed var(--line-2);border-radius:10px;background:var(--surface-2)">{% endif %}</div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <h3>13. ผู้ประสานงาน</h3>
+  <div class="grid g2" style="gap:0 14px">
+    {{ inp('coord_name', 'ชื่อ', d.coord_name, req=true) }}
+    {{ inp('coord_position', 'ตำแหน่ง', d.coord_position) }}
+    {{ inp('coord_phone', 'โทรศัพท์', d.coord_phone, type='tel', req=true) }}
+    {{ inp('coord_fax', 'โทรสาร', d.coord_fax, type='tel') }}
+    {{ inp('coord_email', 'อีเมล', d.coord_email, type='email', req=true) }}
+    {{ inp('coord_line', 'ID Line', d.coord_line) }}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <h3>คำรับรอง <span class="star">*</span></h3>
+  <p class="muted" style="margin-top:0">ห้องปฏิบัติการที่ขอรับการประเมินต้องปฏิบัติดังต่อไปนี้</p>
+  {% for c in fm.COMMITMENTS %}
+  <label class="commit"><input type="checkbox" name="commit_{{ loop.index }}" value="1" {{ 'checked' if loop.index in (d.commits or []) }} {{ 'disabled' if not editable }}>
+    <span><b>{{ loop.index }}.</b> {{ c }}</span></label>
+  {% endfor %}
+  <div class="sep"></div>
+  <h3>ผู้มีอำนาจลงนาม</h3>
+  <div class="grid g2" style="gap:0 14px">
+    {{ inp('signer_name', 'ชื่อ-สกุล', d.signer_name, req=true) }}
+    {{ inp('signer_position', 'ตำแหน่ง', d.signer_position, 'เช่น คณบดีคณะ...', req=true) }}
+  </div>
+  <p class="hint" style="margin:0">ผู้มีอำนาจลงนามหมายถึง หัวหน้าส่วนงาน/คณบดี/ผู้อำนวยการ/ผู้ที่ได้รับมอบอำนาจ — ลงนามในใบสมัครที่พิมพ์จากระบบ แล้วแนบไฟล์กลับเข้าระบบ</p>
+  {% if editable %}
+  <div class="field" style="margin-top:12px"><label>เอกสารประกอบอื่น ๆ (ถ้ามี)</label>
+    {{ filelist('other', editable) }}
+    <input type="file" name="file_other" accept="application/pdf,image/*" multiple style="padding:10px;border:1px dashed var(--line-2);border-radius:10px;background:var(--surface-2)"></div>
+  {% endif %}
+</div>
+
+{% if editable %}
+<div class="sticky-submit row">
+  <span class="muted" style="font-size:.88rem"><span class="star">*</span> จำเป็นต้องกรอกก่อนส่ง · บันทึกร่างได้ทุกเมื่อ</span>
+  <span class="spacer"></span>
+  <button class="btn" type="submit" name="action" value="save">💾 บันทึกร่าง</button>
+  <button class="btn brand" type="submit" name="action" value="submit">📨 {{ 'ส่งใบสมัครอีกครั้ง' if st == 'pending' else 'ส่งใบสมัคร' }}</button>
+</div>
+{% endif %}
+</form>
+{% for kind in ('survey', 'signed', 'other') %}{% for f in files.get(kind, []) %}
+<form id="del-{{ f.id }}" method="post" action="{{ url_for('application_file_delete', file_id=f.id) }}" data-confirm="ลบไฟล์ {{ f.filename }}?"></form>
+{% endfor %}{% endfor %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const $ = s => document.querySelector(s);
+  const tog = (box, on) => { if (box) box.style.display = on ? '' : 'none'; };
+  document.querySelectorAll('input[name=first_time]').forEach(r => r.addEventListener('change', () => tog($('#lastbox'), $('input[name=first_time]:checked').value === '0')));
+  document.querySelectorAll('input[name=certified]').forEach(r => r.addEventListener('change', () => tog($('#certbox'), $('input[name=certified]:checked').value === '1')));
+  const ao = $('#actOther'); ao && ao.addEventListener('change', () => tog($('#otherbox'), ao.checked));
+  const sum = () => {
+    let t = 0, any = false;
+    document.querySelectorAll('.sc-in').forEach(i => { const v = parseFloat(i.value); if (!isNaN(v)) { t += v; any = true; } });
+    $('#sumScore').textContent = any ? (Math.round(t * 100) / 100) : '';
+  };
+  document.querySelectorAll('.sc-in').forEach(i => i.addEventListener('input', sum));
+})();
+</script>
+{% endblock %}

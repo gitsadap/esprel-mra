@@ -4,16 +4,16 @@
 <div class="page-head">
   <div><div class="crumb">ESPReL MRA · สำหรับห้องปฏิบัติการ</div><h1>ห้องปฏิบัติการของฉัน</h1>
     <div class="muted">ดูผลการตรวจประเมิน ตอบแผนการแก้ไข (CAPA) และดาวน์โหลดรายงาน</div></div>
-  <a class="btn brand" href="{{ url_for('lab_register') }}">+ ลงทะเบียนห้องปฏิบัติการ</a>
+  <a class="btn brand" href="{{ url_for('lab_apply') }}">+ สมัครรับการตรวจประเมิน (FM-001)</a>
 </div>
 
 {% if not items %}
 <div class="card empty">
   <div style="font-size:2.4rem">🧪</div>
   <h2>ยังไม่มีห้องปฏิบัติการในบัญชีของคุณ</h2>
-  <p>ลงทะเบียนห้องปฏิบัติการและสมัครเข้ารับการตรวจประเมิน ESPReL ประจำปี {{ this_year }}<br>
+  <p>กรอกใบสมัคร FM-001 เพื่อลงทะเบียนห้องปฏิบัติการและสมัครเข้ารับการตรวจประเมิน ESPReL ประจำปี {{ this_year }}<br>
     หากห้องของคุณเคยรับการตรวจแล้ว โปรดแจ้งหัวหน้าผู้ตรวจให้ผูกบัญชีของคุณกับห้อง</p>
-  <a class="btn brand" href="{{ url_for('lab_register') }}">+ ลงทะเบียนห้องปฏิบัติการ</a>
+  <a class="btn brand" href="{{ url_for('lab_apply') }}">+ สมัครรับการตรวจประเมิน (FM-001)</a>
 </div>
 {% endif %}
 
@@ -26,13 +26,26 @@
       <div class="muted" style="font-size:.88rem">ESPReL no. {{ l.espre_no or '—' }} · {{ l.faculty or '' }}{% if l.location %} · {{ l.location }}{% endif %}</div>
     </div>
     {% if l.status == 'pending' %}<span class="badge amber">รอผู้ดูแลอนุมัติ</span>{% endif %}
-    <a class="btn sm" href="{{ url_for('lab_register', lab_id=l.id) }}">✎ แก้ไขข้อมูล / สมัครปีใหม่</a>
+    {% if not it.apps or it.apps[0].ap.year_be < this_year %}<a class="btn sm brand" href="{{ url_for('lab_apply', lab_id=l.id, year=this_year) }}">+ สมัครปี {{ this_year }}</a>{% endif %}
   </div>
 
   {% if it.apps %}
-  <div class="row" style="margin-top:12px;gap:6px">
-    <span class="muted" style="font-size:.85rem">ใบสมัครเข้ารับการตรวจ:</span>
-    {% for ap in it.apps %}<span class="badge {{ APP_STATUS_TH[ap.status][1] }}">ปี {{ ap.year_be }} · {{ APP_STATUS_TH[ap.status][0] }}</span>{% endfor %}
+  <div class="app-list">
+    {% for x in it.apps %}{% set ap = x.ap %}
+    <div class="app-row">
+      <div style="flex:1;min-width:0">
+        <b>ใบสมัคร FM-001 ปี {{ ap.year_be }}</b>{% if ap.app_no %} <small class="muted">· เลขที่ {{ ap.app_no }}</small>{% endif %}<br>
+        <span class="badge {{ APP_STATUS_TH[ap.status][1] }}">{{ APP_STATUS_TH[ap.status][0] }}</span>
+        {% if ap.status != 'draft' %}
+          {% if x.signed %}<span class="badge green">✓ แนบฉบับลงนามแล้ว</span>{% else %}<span class="warn-txt">⚠ ยังไม่แนบฉบับลงนาม</span>{% endif %}
+        {% endif %}
+      </div>
+      <div class="row" style="gap:6px">
+        <a class="btn sm {{ 'brand' if ap.status == 'draft' }}" href="{{ url_for('lab_apply', app_id=ap.id) }}">{{ '✎ กรอกต่อ/ส่ง' if ap.status == 'draft' else ('✎ แก้ไข/แนบไฟล์' if ap.status == 'pending' else '👁 ดูใบสมัคร') }}</a>
+        {% if ap.status != 'draft' %}<a class="btn sm" href="{{ url_for('application_print', app_id=ap.id) }}" target="_blank">🖨 พิมพ์</a>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
   </div>
   {% endif %}
 

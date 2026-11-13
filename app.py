@@ -36,7 +36,7 @@ STATUS_TH = {
     "r2_reported": ("เสร็จสิ้น · ออก Report 2 แล้ว", "green"),
 }
 STATUS_ORDER = ["r1", "r1_reported", "capa_submitted", "r2", "r2_reported"]
-APP_STATUS_TH = {"pending": ("รออนุมัติ", "amber"), "approved": ("อนุมัติแล้ว · รอจัดทีม", "blue"),
+APP_STATUS_TH = {"draft": ("ร่าง · ยังไม่ส่ง", "gray"), "pending": ("ส่งแล้ว · รออนุมัติ", "amber"), "approved": ("อนุมัติแล้ว · รอจัดทีม", "blue"),
                  "assigned": ("จัดทีมแล้ว", "green"), "rejected": ("ไม่อนุมัติ", "red")}
 IMG_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/heic": ".heic"}
 DOC_TYPES = dict(IMG_TYPES, **{"application/pdf": ".pdf"})
@@ -245,6 +245,22 @@ def file_url(att):
     return url_for("file_view", att_id=att["id"])
 
 
+def _display_name(fn):
+    """ชื่อไฟล์สำหรับแสดงผล (เก็บอักษรไทยไว้ ตัดอักขระพิเศษ/พาธ)"""
+    import unicodedata
+    base = os.path.basename((fn or "").replace("\\", "/"))
+    keep = "".join(ch for ch in unicodedata.normalize("NFC", base)
+                   if unicodedata.category(ch)[0] in "LNM" or ch in " ._-()")
+    return keep.strip(" .")[:120]
+
+
+def _disposition(name, inline=True):
+    from urllib.parse import quote
+    name = name or "file"
+    ascii_name = secure_filename(name) or "file"
+    return f"{'inline' if inline else 'attachment'}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"
+
+
 def save_upload(fs, prefix, allowed):
     """บันทึกไฟล์อัปโหลดไปยัง storage คืน (path, filename, content_type, size)"""
     ctype = (fs.mimetype or "").lower()
@@ -253,7 +269,7 @@ def save_upload(fs, prefix, allowed):
     data = fs.read()
     if len(data) > 8 * 1024 * 1024:
         raise ValueError("ไฟล์ใหญ่เกิน 8 MB")
-    name = secure_filename(fs.filename or "") or "file"
+    name = _display_name(fs.filename) or "file"
     path = f"{prefix}/{secrets.token_hex(8)}{allowed[ctype]}"
     storage.save(path, data, ctype)
     return path, name, ctype, len(data)
@@ -904,7 +920,9 @@ def register(app):
                ORDER BY name""", (g.user["id"], g.user["id"])).fetchall()
         items = []
         for l in labs:
-            apps = db.execute("SELECT * FROM applications WHERE lab_id=? ORDER BY year_be DESC", (l["id"],)).fetchall()
+            apps = [{"ap": ap, "signed": db.execute("SELECT COUNT(*) n FROM app_files WHERE application_id=? AND kind='signed'",
+                                                     (ap["id"],)).fetchone()["n"]}
+                    for ap in db.execute("SELECT * FROM applications WHERE lab_id=? ORDER BY year_be DESC", (l["id"],)).fetchall()]
             audits = db.execute("SELECT * FROM audits WHERE lab_id=? ORDER BY year_be DESC", (l["id"],)).fetchall()
             aud = []
             for a in audits:
@@ -914,42 +932,219 @@ def register(app):
             items.append({"lab": l, "apps": apps, "audits": aud})
         return render_template("lab_home.html", items=items, this_year=dbm.datetime.now().year + 543)
 
-    @app.route("/lab/register", methods=["GET", "POST"])
+    # ---------- FM-001 ใบสมัครรับการตรวจประเมิน
+    def _app_files(app_id):
+        out = {}
+        for r in get_db().execute("SELECT * FROM app_files WHERE application_id=? ORDER BY id", (app_id,)).fetchall():
+            out.setdefault(r["kind"], []).append(r)
+        return out
+
+    def _load_application(app_id):
+        ap = get_db().execute(
+            """SELECT ap.*, l.name lab_name, l.owner_user_id FROM applications ap JOIN labs l ON l.id=ap.lab_id
+               WHERE ap.id=?""", (app_id,)).fetchone()
+        if not ap:
+            abort(404)
+        if not (is_staff() or is_lab_member(ap["lab_id"])):
+            abort(403)
+        return ap
+
+    def _auto_app_no(app_id, year_be):
+        """เลขที่ใบสมัครอัตโนมัติ รูปแบบ ลำดับ/ปี เช่น 001/2569 (หัวหน้าผู้ตรวจแก้ไขได้)"""
+        db = get_db()
+        cur = db.execute("SELECT app_no FROM applications WHERE id=?", (app_id,)).fetchone()
+        if cur and cur["app_no"]:
+            return
+        seq = 0
+        for r in db.execute("SELECT app_no FROM applications WHERE year_be=? AND app_no IS NOT NULL", (year_be,)).fetchall():
+            m = re.match(r"\s*(\d+)", r["app_no"] or "")
+            if m:
+                seq = max(seq, int(m.group(1)))
+        db.execute("UPDATE applications SET app_no=? WHERE id=?", (f"{seq + 1:03d}/{year_be}", app_id))
+
+    @app.route("/lab/register")
     @login_required
     def lab_register():
+        return redirect(url_for("lab_apply", **request.args))
+
+    @app.route("/lab/apply", methods=["GET", "POST"])
+    @app.route("/lab/apply/<int:app_id>", methods=["GET", "POST"])
+    @login_required
+    def lab_apply(app_id=None):
+        import json
+        import fm001
         db = get_db()
-        lab_id = request.args.get("lab_id", type=int) or request.form.get("lab_id", type=int)
+        this_year = dbm.datetime.now().year + 543
+        ap = _load_application(app_id) if app_id else None
+        lab_id = ap["lab_id"] if ap else (request.values.get("lab_id", type=int))
         lab = db.execute("SELECT * FROM labs WHERE id=?", (lab_id,)).fetchone() if lab_id else None
         if lab and not (is_lab_member(lab["id"]) or is_staff()):
             abort(403)
-        this_year = dbm.datetime.now().year + 543
+        editable = (not ap or ap["status"] in ("draft", "pending")) and (not lab or is_lab_member(lab["id"]) or is_lead())
         if request.method == "POST":
-            f = request.form
-            name = f.get("name", "").strip()
-            year_be = f.get("year_be", type=int) or this_year
-            if not name or not f.get("faculty", "").strip():
-                flash("กรุณากรอกชื่อห้องปฏิบัติการและคณะ/หน่วยงาน", "error")
-                return render_template("lab_register.html", lab=lab or f, this_year=this_year)
-            vals = (name, f.get("espre_no", "").strip(), f.get("faculty", "").strip(), f.get("affiliation", "").strip(),
-                    f.get("location", "").strip(), f.get("head_name", "").strip(), f.get("phone", "").strip(),
-                    f.get("email", "").strip(), f.get("contact", "").strip())
+            if not editable:
+                flash("ใบสมัครนี้อนุมัติแล้ว แก้ไขไม่ได้", "error")
+                return redirect(url_for("lab_apply", app_id=app_id))
+            d = fm001.parse(request.form)
+            year_be = request.form.get("year_be", type=int) or (ap["year_be"] if ap else this_year)
+            if not d["name"]:
+                flash("กรุณาระบุชื่อห้องปฏิบัติการ", "error")
+                return render_template("fm001_form.html", ap=ap, d=d, lab=lab, files=_app_files(app_id) if app_id else {},
+                                       fm=fm001, this_year=this_year, editable=True, year_be=year_be)
+            labvals = (d["name"], d["espre_no"], d["faculty"], d["department"], d["organization"], d["phone"],
+                       d["fax"], d["head_name"], d["coord_email"] or None, f'{d["coord_name"]} {d["coord_phone"]}'.strip())
             if lab:
-                db.execute("""UPDATE labs SET name=?,espre_no=?,faculty=?,affiliation=?,location=?,head_name=?,phone=?,
-                              email=?,contact=? WHERE id=?""", vals + (lab["id"],))
+                db.execute("""UPDATE labs SET name=?, espre_no=?, faculty=?, department=?, organization=?, phone=?, fax=?,
+                              head_name=?, email=COALESCE(?, email), contact=? WHERE id=?""", labvals + (lab["id"],))
                 lid = lab["id"]
             else:
-                lid = db.insert("""INSERT INTO labs(name,espre_no,faculty,affiliation,location,head_name,phone,email,contact,
-                                   owner_user_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,'pending',?)""",
-                                vals + (g.user["id"], now()))
+                lid = db.insert("""INSERT INTO labs(name,espre_no,faculty,department,organization,phone,fax,head_name,email,contact,
+                                   affiliation,owner_user_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)""",
+                                labvals + (" ".join(x for x in (d["department"], d["faculty"], d["organization"]) if x),
+                                           g.user["id"], now()))
                 db.execute("INSERT INTO lab_members(lab_id,user_id) VALUES(?,?) ON CONFLICT DO NOTHING", (lid, g.user["id"]))
-            if f.get("apply"):
-                db.execute("""INSERT INTO applications(lab_id,year_be,status,note,created_by,created_at) VALUES(?,?,'pending',?,?,?)
-                              ON CONFLICT(lab_id,year_be) DO NOTHING""",
-                           (lid, year_be, f.get("note", "").strip() or None, g.user["id"], now()))
+            if d["department"] or d["faculty"]:
+                db.execute("UPDATE labs SET affiliation=? WHERE id=?",
+                           (" ".join(x for x in (d["department"], d["faculty"], d["organization"]) if x), lid))
+            if not ap:
+                dup = db.execute("SELECT id FROM applications WHERE lab_id=? AND year_be=?", (lid, year_be)).fetchone()
+                if dup:
+                    app_id = dup["id"]
+                    ap = _load_application(app_id)
+                    if ap["status"] not in ("draft", "pending"):
+                        db.commit()
+                        flash(f"ห้องนี้มีใบสมัครปี {year_be} ที่ดำเนินการแล้ว", "error")
+                        return redirect(url_for("lab_apply", app_id=app_id))
+                else:
+                    app_id = db.insert("""INSERT INTO applications(lab_id,year_be,status,created_by,created_at) VALUES(?,?,'draft',?,?)""",
+                                       (lid, year_be, g.user["id"], now()))
+            else:
+                db.execute("UPDATE applications SET year_be=? WHERE id=?", (year_be, app_id))
+            # ไฟล์แนบ
+            for kind in ("survey", "signed", "other"):
+                for fs in request.files.getlist(f"file_{kind}"):
+                    if not fs or not fs.filename:
+                        continue
+                    try:
+                        path, name, ctype, size = save_upload(fs, f"applications/{app_id}/{kind}", DOC_TYPES)
+                    except (ValueError, RuntimeError) as ex:
+                        flash(f"{fs.filename}: {ex}", "error")
+                        continue
+                    db.execute("""INSERT INTO app_files(application_id,kind,path,filename,content_type,size,uploaded_by,created_at)
+                                  VALUES(?,?,?,?,?,?,?,?)""", (app_id, kind, path, name, ctype, size, g.user["id"], now()))
+            n_survey = db.execute("SELECT COUNT(*) n FROM app_files WHERE application_id=? AND kind='survey'",
+                                  (app_id,)).fetchone()["n"]
+            submit = request.form.get("action") == "submit"
+            status = ap["status"] if ap else "draft"
+            if submit:
+                errs = fm001.validate(d, n_survey)
+                if errs:
+                    db.execute("UPDATE applications SET form=?, updated_at=? WHERE id=?",
+                               (json.dumps(d, ensure_ascii=False), now(), app_id))
+                    db.commit()
+                    flash("บันทึกร่างแล้ว แต่ยังส่งไม่ได้ — กรุณากรอก: " + " · ".join(errs), "error")
+                    return redirect(url_for("lab_apply", app_id=app_id))
+                status = "pending"
+                _auto_app_no(app_id, year_be)
+            db.execute("UPDATE applications SET form=?, status=?, updated_at=?, submitted_at=COALESCE(submitted_at, ?) WHERE id=?",
+                       (json.dumps(d, ensure_ascii=False), status, now(), now() if submit else None, app_id))
             db.commit()
-            flash("บันทึกข้อมูลห้องปฏิบัติการแล้ว" + (f" และส่งใบสมัครเข้ารับการตรวจปี {year_be}" if f.get("apply") else ""), "ok")
-            return redirect(url_for("lab_home", **({"as": "lab"} if is_staff() else {})))
-        return render_template("lab_register.html", lab=lab, this_year=this_year)
+            if submit:
+                flash(f"ส่งใบสมัคร FM-001 ปี {year_be} แล้ว — พิมพ์ใบสมัคร ให้ผู้มีอำนาจลงนาม แล้วแนบไฟล์ที่ลงนามกลับเข้าระบบ", "ok")
+                return redirect(url_for("lab_apply", app_id=app_id))
+            flash("บันทึกร่างใบสมัครแล้ว", "ok")
+            return redirect(url_for("lab_apply", app_id=app_id))
+        # GET
+        if ap:
+            d = fm001.load(ap)
+            year_be = ap["year_be"]
+        else:
+            d = {"organization": "มหาวิทยาลัยนเรศวร", "first_time": "1", "scores": fm001.blank_scores(),
+                 "head_name": g.user["full_name"] if g.user["role"] == "lab" else "",
+                 "coord_email": g.user["email"] or ""}
+            year_be = request.args.get("year", type=int) or this_year
+        if lab:
+            for k in fm001.LAB_FIELDS:
+                if not d.get(k):
+                    d[k] = lab[k] or ""
+            if not ap:
+                last = db.execute("SELECT r2_date, r1_date FROM audits WHERE lab_id=? ORDER BY year_be DESC LIMIT 1",
+                                  (lab["id"],)).fetchone()
+                if last:
+                    d["first_time"] = "0"
+                    d["last_assessed"] = thai_date(last["r2_date"] or last["r1_date"]) if (last["r2_date"] or last["r1_date"]) else ""
+        d.setdefault("scores", fm001.blank_scores())
+        return render_template("fm001_form.html", ap=ap, d=d, lab=lab, files=_app_files(app_id) if app_id else {},
+                               fm=fm001, this_year=this_year, editable=editable, year_be=year_be)
+
+    @app.route("/application/<int:app_id>/signed", methods=["POST"])
+    @login_required
+    def application_signed(app_id):
+        """แนบใบสมัครที่ลงนามแล้ว (ทำได้ทุกสถานะ)"""
+        ap = _load_application(app_id)
+        db = get_db()
+        n = 0
+        for fs in request.files.getlist("file_signed"):
+            if fs and fs.filename:
+                try:
+                    path, name, ctype, size = save_upload(fs, f"applications/{app_id}/signed", DOC_TYPES)
+                except (ValueError, RuntimeError) as ex:
+                    flash(str(ex), "error")
+                    continue
+                db.execute("""INSERT INTO app_files(application_id,kind,path,filename,content_type,size,uploaded_by,created_at)
+                              VALUES(?,?,?,?,?,?,?,?)""", (app_id, "signed", path, name, ctype, size, g.user["id"], now()))
+                n += 1
+        db.commit()
+        if n:
+            flash("แนบใบสมัครที่ลงนามแล้ว", "ok")
+        return redirect(request.referrer or url_for("lab_apply", app_id=ap["id"]))
+
+    @app.route("/application/file/<int:file_id>")
+    @login_required
+    def application_file(file_id):
+        f = get_db().execute("SELECT * FROM app_files WHERE id=?", (file_id,)).fetchone()
+        if not f:
+            abort(404)
+        _load_application(f["application_id"])
+        url = storage.signed_url(f["path"])
+        if url:
+            return redirect(url)
+        return Response(storage.load(f["path"]), mimetype=f["content_type"] or "application/octet-stream",
+                        headers={"Content-Disposition": _disposition(f["filename"])})
+
+    @app.route("/application/file/<int:file_id>/delete", methods=["POST"])
+    @login_required
+    def application_file_delete(file_id):
+        db = get_db()
+        f = db.execute("SELECT * FROM app_files WHERE id=?", (file_id,)).fetchone()
+        if not f:
+            abort(404)
+        ap = _load_application(f["application_id"])
+        if not is_lead() and (ap["status"] not in ("draft", "pending") and f["kind"] != "signed"):
+            abort(403)
+        storage.delete(f["path"])
+        db.execute("DELETE FROM app_files WHERE id=?", (file_id,))
+        db.commit()
+        flash("ลบไฟล์แนบแล้ว", "ok")
+        return redirect(request.referrer or url_for("lab_apply", app_id=ap["id"]))
+
+    @app.route("/application/<int:app_id>/print")
+    @login_required
+    def application_print(app_id):
+        import fm001
+        ap = _load_application(app_id)
+        lab = get_db().execute("SELECT * FROM labs WHERE id=?", (ap["lab_id"],)).fetchone()
+        return render_template("fm001_print.html", ap=ap, d=fm001.load(ap), lab=lab, fm=fm001,
+                               files=_app_files(app_id), s=dbm.all_settings())
+
+    @app.route("/application/<int:app_id>/number", methods=["POST"])
+    @roles("lead", "admin")
+    def application_number(app_id):
+        _load_application(app_id)
+        get_db().execute("UPDATE applications SET app_no=? WHERE id=?", (request.form.get("app_no", "").strip() or None, app_id))
+        get_db().commit()
+        flash("บันทึกเลขที่ใบสมัครแล้ว", "ok")
+        return redirect(request.referrer or url_for("planning"))
 
     @app.route("/lab/audit/<int:audit_id>")
     @login_required
@@ -1078,8 +1273,12 @@ def register(app):
             return redirect(url_for("planning", year=year))
         apps = db.execute(
             """SELECT ap.*, l.name lab_name, l.faculty, l.affiliation, l.espre_no, l.head_name, l.phone, l.email,
-                      u.full_name applicant FROM applications ap JOIN labs l ON l.id=ap.lab_id
-               LEFT JOIN users u ON u.id=ap.created_by WHERE ap.year_be=? ORDER BY ap.status, l.faculty, l.name""",
+                      u.full_name applicant,
+                      (SELECT COUNT(*) FROM app_files f WHERE f.application_id=ap.id AND f.kind='signed') n_signed,
+                      (SELECT COUNT(*) FROM app_files f WHERE f.application_id=ap.id AND f.kind='survey') n_survey
+               FROM applications ap JOIN labs l ON l.id=ap.lab_id
+               LEFT JOIN users u ON u.id=ap.created_by WHERE ap.year_be=? AND ap.status<>'draft'
+               ORDER BY ap.status, l.faculty, l.name""",
             (year,)).fetchall()
         assessors = [dict(u) for u in _staff_users() if u["role"] in ("lead", "assessor")] or \
             [dict(u) for u in _staff_users()]
@@ -1093,7 +1292,8 @@ def register(app):
         proposals, load = propose(to_plan, assessors, team_size, existing)
         years = sorted({r["year_be"] for r in db.execute("SELECT DISTINCT year_be FROM applications").fetchall()} | {year},
                        reverse=True)
-        return render_template("planning.html", year=year, years=years, apps=apps, proposals=proposals,
+        n_draft = db.execute("SELECT COUNT(*) n FROM applications WHERE year_be=? AND status='draft'", (year,)).fetchone()["n"]
+        return render_template("planning.html", year=year, years=years, apps=apps, proposals=proposals, n_draft=n_draft,
                                assessors=assessors, load=load, existing=existing, team_size=team_size)
 
     # ---------- Excel export / import
