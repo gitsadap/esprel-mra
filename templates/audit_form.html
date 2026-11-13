@@ -26,8 +26,9 @@
       <div class="field"><label>หัวหน้าห้องปฏิบัติการ</label><input type="text" name="head_name" value="{{ audit.head_name or '' if audit else '' }}"></div>
     </div>
     <div class="field"><label>ผู้ประสานงาน / ติดต่อ</label><input type="text" name="contact" value="{{ audit.contact or '' if audit else '' }}" placeholder="ชื่อ เบอร์โทร อีเมล"></div>
-    <div class="field"><label>บัญชีผู้ใช้ของห้องปฏิบัติการ (ชื่อผู้ใช้ LDAP) — ให้ห้องเข้าดูผลและตอบ CAPA</label>
-      <input type="text" name="lab_username" autocapitalize="off" placeholder="เช่น labhead01">
+    <div class="field"><label>บัญชีห้องปฏิบัติการ (อีเมลผู้ประสานงาน) — ให้ห้องเข้าดูผลและตอบ CAPA</label>
+      <input type="email" name="lab_username" autocapitalize="off" placeholder="เช่น coordinator@nu.ac.th">
+      <span class="hint">ยังไม่มีบัญชี → ระบบสร้างบัญชีและส่งรหัสผ่านไปที่อีเมลนี้ · ห้องที่สมัครผ่าน FM-001 ผูกบัญชีให้อัตโนมัติแล้ว</span>
       {% if lab_users %}<span class="hint">ผูกแล้ว: {% for u in lab_users %}{{ u.full_name }} ({{ u.username }}){{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}</div>
   </div>
   <div class="card">

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}ตั้งรหัสผ่านใหม่{% endblock %}
+{% block topbar %}{% endblock %}
+{% block flashes %}{% endblock %}
+{% block body %}
+<div class="login">
+  <form class="card" method="post">
+    <div class="logo">ES</div>
+    <h1 style="margin-bottom:2px">ตั้งรหัสผ่านใหม่</h1>
+    <p class="muted" style="margin-top:0">บัญชี {{ u.username }}</p>
+    {% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="flash {{ cat }} inline">{{ msg }}</div>{% endfor %}
+    <div class="field"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</label><input type="password" name="new" minlength="8" autocomplete="new-password" required autofocus></div>
+    <div class="field"><label>ยืนยันรหัสผ่านใหม่</label><input type="password" name="confirm" minlength="8" autocomplete="new-password" required></div>
+    <button class="btn primary block" type="submit">บันทึกรหัสผ่านใหม่</button>
+  </form>
+</div>
+{% endblock %}

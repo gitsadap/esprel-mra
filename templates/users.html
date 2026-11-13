@@ -2,7 +2,7 @@
 {% block title %}ผู้ใช้งาน{% endblock %}
 {% block content %}
 <div class="page-head"><div><div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a></div><h1>ผู้ใช้งาน / คณะผู้ตรวจประเมิน</h1>
-  <div class="muted">ผู้ใช้ทุกคนเข้าสู่ระบบด้วย LDAP ของมหาวิทยาลัย — ระบบจับคู่ชื่อผู้ใช้ LDAP กับรายชื่อนี้เพื่อกำหนดบทบาท · ผู้ที่ไม่อยู่ในรายชื่อจะเข้าได้ในฐานะ “ห้องปฏิบัติการ”</div></div>
+  <div class="muted">ผู้ตรวจ/ทีมงานเข้าสู่ระบบด้วย LDAP ของมหาวิทยาลัย (ต้องเพิ่มชื่อผู้ใช้ไว้ที่นี่ก่อน) · บัญชีห้องปฏิบัติการสร้างอัตโนมัติเมื่อส่งใบสมัคร FM-001 (ชื่อผู้ใช้ = อีเมลผู้ประสานงาน)</div></div>
   <div class="seg">{% for k, v in [('', 'ทั้งหมด'), ('lead','หัวหน้าผู้ตรวจ'), ('assessor','ผู้ตรวจ'), ('lab','ห้องปฏิบัติการ'), ('admin','ผู้ดูแล')] %}
     <a href="{{ url_for('users', role=k or None) }}"><button class="{{ 'on' if (role or '') == k }}">{{ v }}</button></a>{% endfor %}</div>
 </div>
@@ -25,6 +25,14 @@
       <label class="row" style="gap:6px;align-self:end"><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }} style="width:20px;height:20px"> เปิดใช้งาน</label>
       <div><button class="btn sm primary">บันทึก</button>{% if u.last_login %} <small class="muted">เข้าล่าสุด {{ thai_date(u.last_login, True) }}</small>{% endif %}</div>
     </form>
+    {% if u.role == 'lab' %}
+    <div class="row" style="gap:8px;margin-top:8px;font-size:.88rem">
+      <span class="muted">ห้องปฏิบัติการ:</span>{% for l in lab_map.get(u.id, []) %}<span class="badge blue">{{ l }}</span>{% else %}<span class="muted">—</span>{% endfor %}
+      <span class="spacer"></span>
+      <form method="post" data-confirm="สร้างรหัสผ่านใหม่และส่งไปที่ {{ u.email or u.username }}?"><input type="hidden" name="action" value="resetpw"><input type="hidden" name="uid" value="{{ u.id }}">
+        <button class="btn sm">✉ ส่งรหัสผ่านใหม่ทางอีเมล</button></form>
+    </div>
+    {% endif %}
   </details>
   {% endfor %}
 </div>

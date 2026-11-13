@@ -416,3 +416,14 @@ body.present{background:#0f172a}
 .app-list{margin-top:12px;display:grid;gap:8px}
 .app-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
 @media (max-width:600px){.sticky-submit>.muted{display:none}}
+.flash.inline{max-width:none;margin:0 0 12px;box-shadow:none;animation:none;word-break:break-word;font-size:.9rem}
+.apply-cta{display:flex;gap:12px;align-items:center;margin-top:12px;padding:14px 18px;color:inherit;border:1px dashed var(--brand)}
+.apply-cta:hover{text-decoration:none;background:var(--brand-soft)}
+.flash.error{cursor:pointer}
+.flash.error::after{content:" ✕";color:var(--ink-3);font-size:.85em}
+.anon-login{margin-left:auto;color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:7px 14px;font-size:.92rem;white-space:nowrap}
+.anon-login:hover{background:rgba(255,255,255,.12);text-decoration:none}
+.topbar .brand{min-width:0;flex:0 1 auto}
+.topbar .brand>span:last-child{min-width:0;overflow:hidden}
+.brand .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.anon-login{flex:none}

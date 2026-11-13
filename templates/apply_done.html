@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}ส่งใบสมัครแล้ว{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;margin:10px auto 0;text-align:center;padding:28px 22px">
+  <div style="font-size:2.6rem;line-height:1">{{ '📨' if not dup else 'ℹ️' }}</div>
+  {% if dup %}
+  <h1 style="margin:10px 0 4px">มีใบสมัครนี้อยู่แล้ว</h1>
+  <p class="muted">“{{ lab_name }}” ปี {{ year_be }} ส่งใบสมัครไว้แล้ว{% if app_no %} (เลขที่ {{ app_no }}){% endif %} — เข้าสู่ระบบด้วย <b>{{ email }}</b> เพื่อดูหรือแก้ไข</p>
+  {% else %}
+  <h1 style="margin:10px 0 4px">ส่งใบสมัครเรียบร้อย</h1>
+  <p style="margin:0">{{ lab_name }} · ปี {{ year_be }}</p>
+  <div style="font-size:1.6rem;font-weight:700;color:var(--brand-ink);margin:6px 0 2px">เลขที่ใบสมัคร {{ app_no }}</div>
+
+  {% if status == 'sent' %}
+  <p>ระบบส่ง{{ 'อีเมลยืนยัน' if existing else 'ชื่อผู้ใช้และรหัสผ่าน' }}ไปที่ <b>{{ email }}</b> แล้ว<br>
+    <small class="muted">ไม่พบอีเมล? ตรวจสอบกล่องจดหมายขยะ (Junk/Spam) หรือใช้ “ลืมรหัสผ่าน”</small></p>
+  {% elif status == 'dev' and password %}
+  <div class="locked-note" style="text-align:left">
+    <b>โหมดทดสอบ</b> — ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์อีเมล (SMTP) ระบบจึงแสดงข้อมูลที่จะส่งทางอีเมลไว้ที่นี่<br>
+    ชื่อผู้ใช้: <code>{{ username }}</code><br>รหัสผ่านชั่วคราว: <code>{{ password }}</code>
+  </div>
+  {% elif existing %}
+  <p>ห้องนี้ถูกเพิ่มในบัญชีเดิมของ <b>{{ email }}</b> — เข้าสู่ระบบด้วยรหัสผ่านเดิม (ลืมรหัสผ่าน? ใช้ “ลืมรหัสผ่าน”)</p>
+  {% else %}
+  <div class="locked-note" style="text-align:left">ระบบบันทึกใบสมัครแล้ว แต่<b>ยังส่งอีเมลรหัสผ่านไม่สำเร็จ</b> — เจ้าหน้าที่จะส่งรหัสผ่านให้ที่ {{ email }} ภายหลัง หรือติดต่อกองการวิจัยและนวัตกรรม</div>
+  {% endif %}
+  {% endif %}
+
+  <div class="sep"></div>
+  <ol style="text-align:left;line-height:1.8;margin:0 0 14px;padding-left:22px">
+    <li>เข้าสู่ระบบด้วยอีเมลผู้ประสานงานและรหัสผ่านที่ได้รับ (ครั้งแรกให้ตั้งรหัสผ่านใหม่)</li>
+    <li>พิมพ์ใบสมัคร FM-001 ให้ผู้มีอำนาจลงนาม แล้วแนบไฟล์ที่ลงนามกลับเข้าระบบ</li>
+    <li>ติดตามสถานะใบสมัคร ผลการตรวจประเมิน และตอบ CAPA ของห้องท่านได้ในระบบ</li>
+  </ol>
+  <a class="btn brand" href="{{ url_for('login') }}">ไปหน้าเข้าสู่ระบบ</a>
+</div>
+{% endblock %}

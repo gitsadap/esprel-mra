@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}ลืมรหัสผ่าน{% endblock %}
+{% block topbar %}{% endblock %}
+{% block flashes %}{% endblock %}
+{% block body %}
+<div class="login">
+  <form class="card" method="post">
+    <div class="logo">ES</div>
+    <h1 style="margin-bottom:2px">ลืมรหัสผ่าน</h1>
+    <p class="muted" style="margin-top:0">สำหรับบัญชีห้องปฏิบัติการ (อีเมล + รหัสผ่าน) · ผู้ตรวจที่ใช้บัญชี NU ให้เปลี่ยนรหัสที่ระบบของมหาวิทยาลัย</p>
+    {% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="flash {{ cat }} inline">{{ msg }}</div>{% endfor %}
+    <div class="field"><label>อีเมลที่ใช้เข้าสู่ระบบ</label><input type="email" name="email" autocomplete="email" required autofocus></div>
+    <button class="btn primary block" type="submit">ส่งลิงก์ตั้งรหัสผ่านใหม่</button>
+    <p class="hint" style="margin-bottom:0"><a href="{{ url_for('login') }}">← กลับไปหน้าเข้าสู่ระบบ</a></p>
+  </form>
+</div>
+{% endblock %}

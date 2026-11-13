@@ -15,6 +15,8 @@ if [ ! -f instance/esprel.db ]; then
 fi
 ( sleep 2; open "http://localhost:$PORT" 2>/dev/null || xdg-open "http://localhost:$PORT" 2>/dev/null ) &
 echo ""
-echo "  บัญชีทดสอบ: admin/admin1234 · lead/lead1234 · auditor1/audit1234 · labuser/lab1234"
+echo "  บัญชีทดสอบ: admin/admin1234 · lead/lead1234 · auditor1/audit1234"
+echo "  ห้องปฏิบัติการ (รหัส lab1234): labuser · ag3105@example.org · sc2201@example.org · en4102@example.org · ph3304@example.org"
+echo "  สมัครแบบไม่ต้อง login: http://localhost:$PORT/apply  (โหมดทดสอบแสดงรหัสผ่านบนจอแทนการส่งอีเมล)"
 echo "  ปิดโปรแกรม: กด Ctrl+C หรือปิดหน้าต่างนี้"
 python app.py

@@ -1,7 +1,9 @@
 /* Shared helpers: toast, modal, fetch JSON */
 (function () {
   const flashes = document.getElementById('flashes');
-  setTimeout(() => flashes && flashes.querySelectorAll('.flash').forEach(f => f.remove()), 6000);
+  // ข้อความแจ้งเตือนทั่วไปหายเอง · ข้อความผิดพลาดค้างไว้จนกว่าจะแตะปิด
+  setTimeout(() => flashes && flashes.querySelectorAll('.flash:not(.error)').forEach(f => f.remove()), 6000);
+  flashes && flashes.addEventListener('click', e => { const f = e.target.closest('.flash'); f && f.remove(); });
 
   window.toast = function (msg, cat) {
     const d = document.createElement('div');

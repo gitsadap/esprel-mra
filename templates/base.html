@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="csrf-token" content="{{ csrf_token }}">
 <title>{% block title %}ESPReL MRA{% endblock %} · ESPReL MRA NU</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=4">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=5">
 {% block head %}{% endblock %}
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
@@ -36,15 +36,17 @@
     <a href="{{ url_for('account') }}" class="who" title="บัญชีของฉัน">👤 {{ g.user.full_name|short }}</a>
     <a href="{{ url_for('logout') }}">ออก</a>
   </nav>
+  {% else %}
+  <a class="anon-login" href="{{ url_for('login') }}">เข้าสู่ระบบ</a>
   {% endif %}
 </header>
 {% endblock %}
 
-<div class="flashes" id="flashes">
+{% block flashes %}<div class="flashes" id="flashes">
 {% for cat, msg in get_flashed_messages(with_categories=true) %}
   <div class="flash {{ cat }}">{{ msg }}</div>
 {% endfor %}
-</div>
+</div>{% endblock %}
 
 {% block body %}
 <main class="wrap">{% block content %}{% endblock %}</main>
@@ -55,7 +57,7 @@
   <div class="actions" id="modal-actions"></div>
 </div></div>
 
-<script src="{{ url_for('static', filename='js/app.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=5"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

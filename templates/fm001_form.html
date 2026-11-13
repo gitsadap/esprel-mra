@@ -2,7 +2,7 @@
 {% block title %}ใบสมัคร FM-001{% endblock %}
 {% macro inp(name, label, val, ph='', type='text', req=false, cls='') -%}
 <div class="field {{ cls }}"><label>{{ label }}{% if req %} <span class="star">*</span>{% endif %}</label>
-  <input type="{{ type }}" name="{{ name }}" value="{{ val or '' }}" placeholder="{{ ph }}" {{ 'disabled' if not editable }}></div>
+  <input type="{{ type }}" name="{{ name }}" value="{{ val or '' }}" placeholder="{{ ph }}" {{ 'disabled' if not editable }} {{ 'required' if req and public }}></div>
 {%- endmacro %}
 {% macro filelist(kind, can_delete) -%}
   {% for f in files.get(kind, []) %}
@@ -17,12 +17,12 @@
 {% set st = ap.status if ap else 'draft' %}
 <div class="page-head">
   <div style="min-width:0">
-    <div class="crumb"><a href="{{ url_for('lab_home', **({'as':'lab'} if is_staff() else {})) }}">ห้องปฏิบัติการของฉัน</a>{% if is_lead() %} · <a href="{{ url_for('planning', year=year_be) }}">ใบสมัคร & จัดทีม</a>{% endif %}</div>
+    <div class="crumb">{% if public %}ESPReL MRA มหาวิทยาลัยนเรศวร · มีบัญชีแล้ว? <a href="{{ url_for('login') }}">เข้าสู่ระบบ</a>{% else %}<a href="{{ url_for('lab_home', **({'as':'lab'} if is_staff() else {})) }}">ห้องปฏิบัติการของฉัน</a>{% if is_lead() %} · <a href="{{ url_for('planning', year=year_be) }}">ใบสมัคร & จัดทีม</a>{% endif %}{% endif %}</div>
     <h1 style="margin-bottom:4px">ใบสมัครรับการตรวจประเมินความปลอดภัยในห้องปฏิบัติการ (ESPReL Checklist)</h1>
     <div class="muted">แบบฟอร์ม FM-001 Rev.08{% if ap and ap.app_no %} · เลขที่ใบสมัคร <b>{{ ap.app_no }}</b>{% endif %}{% if ap and ap.submitted_at %} · ยื่นเมื่อ {{ thai_date(ap.submitted_at) }}{% endif %}</div>
   </div>
   <div class="row">
-    <span class="badge {{ APP_STATUS_TH[st][1] }}">{{ APP_STATUS_TH[st][0] }}</span>
+    {% if not public %}<span class="badge {{ APP_STATUS_TH[st][1] }}">{{ APP_STATUS_TH[st][0] }}</span>{% endif %}
     {% if ap %}<a class="btn" href="{{ url_for('application_print', app_id=ap.id) }}" target="_blank">🖨 พิมพ์ใบสมัคร FM-001</a>{% endif %}
   </div>
 </div>
@@ -45,6 +45,16 @@
 </div>
 {% endif %}
 
+{% if public %}
+<div class="card" style="margin-bottom:14px;border-left:5px solid var(--primary)">
+  <h3 style="margin-bottom:4px">สมัครได้ทันที ไม่ต้องมีบัญชี</h3>
+  <ol style="margin:4px 0 0;padding-left:20px;line-height:1.8">
+    <li>กรอกใบสมัครให้ครบ แนบผลการสำรวจ ESPReL Checklist จากระบบ วช. แล้วกด “ส่งใบสมัคร”</li>
+    <li>ระบบส่ง <b>ชื่อผู้ใช้ (อีเมลผู้ประสานงาน) และรหัสผ่าน</b> ไปที่อีเมลผู้ประสานงานในข้อ 13</li>
+    <li>เข้าสู่ระบบเพื่อพิมพ์ใบสมัครให้ผู้มีอำนาจลงนาม แนบไฟล์ที่ลงนามกลับ และติดตามสถานะ/ผลการตรวจของห้องท่าน</li>
+  </ol>
+</div>
+{% endif %}
 {% if not editable %}<div class="locked-note">🔒 ใบสมัครนี้ได้รับการพิจารณาแล้ว — ดูข้อมูลได้อย่างเดียว</div>{% endif %}
 
 <form method="post" enctype="multipart/form-data" id="fmform">
@@ -135,7 +145,8 @@
   </div>
   <div class="field" style="margin-top:12px"><label>แนบผลการสำรวจสภาพความปลอดภัยห้องปฏิบัติการ (ESPReL Checklist) ในระบบของ วช. <span class="star">*</span> <small class="muted">(PDF หรือรูปภาพ)</small></label>
     {{ filelist('survey', editable) }}
-    {% if editable %}<input type="file" name="file_survey" accept="application/pdf,image/*" multiple style="padding:10px;border:1px dashed var(--line-2);border-radius:10px;background:var(--surface-2)">{% endif %}</div>
+    {% if editable %}<input type="file" name="file_survey" accept="application/pdf,image/*" multiple {{ 'required' if public }} style="padding:10px;border:1px dashed var(--line-2);border-radius:10px;background:var(--surface-2)">
+    <span class="hint">PDF หรือรูปภาพ ไม่เกิน 4 MB ต่อไฟล์</span>{% endif %}</div>
 </div>
 
 <div class="card" style="margin-bottom:14px">
@@ -145,7 +156,7 @@
     {{ inp('coord_position', 'ตำแหน่ง', d.coord_position) }}
     {{ inp('coord_phone', 'โทรศัพท์', d.coord_phone, type='tel', req=true) }}
     {{ inp('coord_fax', 'โทรสาร', d.coord_fax, type='tel') }}
-    {{ inp('coord_email', 'อีเมล', d.coord_email, type='email', req=true) }}
+    {{ inp('coord_email', 'อีเมล — ใช้เป็นชื่อผู้ใช้เข้าสู่ระบบ ระบบจะส่งรหัสผ่านไปที่อีเมลนี้' if public else 'อีเมล', d.coord_email, type='email', req=true) }}
     {{ inp('coord_line', 'ID Line', d.coord_line) }}
   </div>
 </div>
@@ -154,7 +165,7 @@
   <h3>คำรับรอง <span class="star">*</span></h3>
   <p class="muted" style="margin-top:0">ห้องปฏิบัติการที่ขอรับการประเมินต้องปฏิบัติดังต่อไปนี้</p>
   {% for c in fm.COMMITMENTS %}
-  <label class="commit"><input type="checkbox" name="commit_{{ loop.index }}" value="1" {{ 'checked' if loop.index in (d.commits or []) }} {{ 'disabled' if not editable }}>
+  <label class="commit"><input type="checkbox" name="commit_{{ loop.index }}" value="1" {{ 'checked' if loop.index in (d.commits or []) }} {{ 'disabled' if not editable }} {{ 'required' if public }}>
     <span><b>{{ loop.index }}.</b> {{ c }}</span></label>
   {% endfor %}
   <div class="sep"></div>
@@ -173,9 +184,15 @@
 
 {% if editable %}
 <div class="sticky-submit row">
+  {% if public %}
+  <span class="muted" style="font-size:.88rem"><span class="star">*</span> จำเป็นต้องกรอก · หลังส่ง ระบบส่งรหัสผ่านไปที่อีเมลผู้ประสานงาน</span>
+  <span class="spacer"></span>
+  <input type="text" name="website" value="" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+  {% else %}
   <span class="muted" style="font-size:.88rem"><span class="star">*</span> จำเป็นต้องกรอกก่อนส่ง · บันทึกร่างได้ทุกเมื่อ</span>
   <span class="spacer"></span>
-  <button class="btn" type="submit" name="action" value="save">💾 บันทึกร่าง</button>
+  <button class="btn" type="submit" name="action" value="save" formnovalidate>💾 บันทึกร่าง</button>
+  {% endif %}
   <button class="btn brand" type="submit" name="action" value="submit">📨 {{ 'ส่งใบสมัครอีกครั้ง' if st == 'pending' else 'ส่งใบสมัคร' }}</button>
 </div>
 {% endif %}
@@ -198,6 +215,17 @@
     $('#sumScore').textContent = any ? (Math.round(t * 100) / 100) : '';
   };
   document.querySelectorAll('.sc-in').forEach(i => i.addEventListener('input', sum));
+  const form = $('#fmform');
+  form && form.addEventListener('submit', e => {
+    const sub = e.submitter && e.submitter.value === 'submit';
+    if (!sub) return;
+    if (!form.querySelector('input[name^=act_]:checked')) {
+      e.preventDefault(); e.stopImmediatePropagation(); alert('ข้อ 8: เลือกการดำเนินงานของห้องปฏิบัติการอย่างน้อย 1 ข้อ'); return;
+    }
+    let big = [];
+    form.querySelectorAll('input[type=file]').forEach(i => [...i.files].forEach(f => { if (f.size > 4 * 1024 * 1024) big.push(f.name); }));
+    if (big.length) { e.preventDefault(); e.stopImmediatePropagation(); alert('ไฟล์ใหญ่เกิน 4 MB: ' + big.join(', ') + '\nกรุณาลดขนาดไฟล์ก่อนแนบ'); }
+  }, true);
 })();
 </script>
 {% endblock %}

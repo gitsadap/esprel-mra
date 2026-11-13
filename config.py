@@ -52,10 +52,27 @@ LDAP_ATTR_NAME = env("LDAP_ATTR_NAME", "displayName")
 LDAP_ATTR_MAIL = env("LDAP_ATTR_MAIL", "mail")
 LDAP_ATTR_DEPT = env("LDAP_ATTR_DEPT", "department")
 LDAP_TIMEOUT = int(env("LDAP_TIMEOUT", "8"))
-# ผู้ใช้ LDAP ที่ยังไม่อยู่ในระบบ จะถูกสร้างเป็นบทบาทนี้อัตโนมัติ (ผู้ใช้ฝั่งห้องปฏิบัติการ)
-LDAP_NEW_USER_ROLE = env("LDAP_NEW_USER_ROLE", "lab")
-# อนุญาตบัญชีรหัสผ่านภายในระบบ (ใช้สำหรับ admin ตั้งต้น/ทดสอบ) — production แนะนำเปิดเฉพาะ admin
+# LDAP ใช้สำหรับผู้ตรวจ/ทีมงานเท่านั้น: ผู้ใช้ LDAP ที่ admin ยังไม่ได้เพิ่มในเมนู "ผู้ใช้" จะเข้าสู่ระบบไม่ได้
+# (ตั้งเป็น assessor เพื่อสร้างบัญชีผู้ตรวจอัตโนมัติ — ไม่แนะนำ)
+LDAP_NEW_USER_ROLE = env("LDAP_NEW_USER_ROLE", "")
+# บัญชีรหัสผ่านภายในระบบของ "เจ้าหน้าที่" (admin ตั้งต้น/ทดสอบ) — production ปิดได้เมื่อมีผู้ดูแลที่เป็น LDAP แล้ว
+# (บัญชีห้องปฏิบัติการ = อีเมล + รหัสผ่านที่ระบบสร้าง ใช้ได้เสมอ)
 ALLOW_LOCAL_LOGIN = env("ALLOW_LOCAL_LOGIN", "1") == "1"
+
+# ---- อีเมล (ส่งชื่อผู้ใช้/รหัสผ่านให้ห้องปฏิบัติการ, ลิงก์ตั้งรหัสผ่านใหม่) — SMTP ของมหาวิทยาลัยหรือบัญชีอีเมลหน่วยงาน
+SMTP_HOST = env("SMTP_HOST")                  # เช่น smtp.office365.com / smtp.gmail.com / mail.nu.ac.th
+SMTP_PORT = int(env("SMTP_PORT", "587"))
+SMTP_USER = env("SMTP_USER")
+SMTP_PASSWORD = env("SMTP_PASSWORD")
+SMTP_SECURITY = env("SMTP_SECURITY", "starttls")   # starttls | ssl | none
+MAIL_FROM = env("MAIL_FROM", SMTP_USER or "esprel@nu.ac.th")
+MAIL_FROM_NAME = env("MAIL_FROM_NAME", "ESPReL MRA มหาวิทยาลัยนเรศวร")
+# URL ของระบบ (ใช้ในลิงก์ในอีเมล) เช่น https://esprel-mra.vercel.app
+APP_BASE_URL = env("APP_BASE_URL")
+# ยังไม่ตั้งค่า SMTP + รันในเครื่อง → แสดงรหัสผ่านบนหน้าจอแทนการส่งอีเมล (โหมดทดสอบเท่านั้น)
+MAIL_DEV_SHOW = env("MAIL_DEV_SHOW", "1" if not SMTP_HOST and not ON_VERCEL else "0") == "1"
+# จำกัดการส่งใบสมัครแบบไม่ต้องเข้าสู่ระบบ (ต่อ IP ต่อชั่วโมง)
+PUBLIC_APPLY_PER_HOUR = int(env("PUBLIC_APPLY_PER_HOUR", "10"))
 
 SECRET_KEY = env("SECRET_KEY")
 ADMIN_INITIAL_PASSWORD = env("ADMIN_INITIAL_PASSWORD", "admin1234")

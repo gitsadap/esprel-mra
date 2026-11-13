@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS users(
   auth_source TEXT NOT NULL DEFAULT 'local',
   active INTEGER NOT NULL DEFAULT 1,
   last_login TEXT,
+  must_change_pw INTEGER NOT NULL DEFAULT 0,
   created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS labs(
@@ -183,6 +184,16 @@ CREATE TABLE IF NOT EXISTS audit_log(
   detail TEXT,
   created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS mail_log(
+  id {PK},
+  to_addr TEXT NOT NULL,
+  subject TEXT,
+  kind TEXT,
+  status TEXT NOT NULL,
+  error TEXT,
+  user_id INTEGER,
+  created_at TEXT
+);
 CREATE TABLE IF NOT EXISTS settings(
   key TEXT PRIMARY KEY,
   value TEXT
@@ -193,7 +204,7 @@ CREATE INDEX IF NOT EXISTS ix_audits_year ON audits(year_be);
 """
 
 TABLES = ["users", "labs", "lab_members", "audits", "applications", "app_files", "audit_team", "assignments", "responses",
-          "capa", "attachments", "element_status", "reports", "audit_log", "settings"]
+          "capa", "attachments", "element_status", "reports", "audit_log", "mail_log", "settings"]
 
 
 def schema_sql(pg):
@@ -315,6 +326,7 @@ LATER_COLUMNS = [
     ("applications", "app_no", "TEXT"), ("applications", "form", "TEXT"),
     ("applications", "submitted_at", "TEXT"), ("applications", "updated_at", "TEXT"),
     ("labs", "department", "TEXT"), ("labs", "organization", "TEXT"), ("labs", "fax", "TEXT"),
+    ("users", "must_change_pw", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 

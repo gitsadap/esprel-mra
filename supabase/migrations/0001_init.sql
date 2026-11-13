@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users(
   auth_source TEXT NOT NULL DEFAULT 'local',
   active INTEGER NOT NULL DEFAULT 1,
   last_login TEXT,
+  must_change_pw INTEGER NOT NULL DEFAULT 0,
   created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS labs(
@@ -159,6 +160,16 @@ CREATE TABLE IF NOT EXISTS audit_log(
   detail TEXT,
   created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS mail_log(
+  id BIGSERIAL PRIMARY KEY,
+  to_addr TEXT NOT NULL,
+  subject TEXT,
+  kind TEXT,
+  status TEXT NOT NULL,
+  error TEXT,
+  user_id INTEGER,
+  created_at TEXT
+);
 CREATE TABLE IF NOT EXISTS settings(
   key TEXT PRIMARY KEY,
   value TEXT
@@ -181,6 +192,7 @@ ALTER TABLE attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE element_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mail_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
 -- Storage bucket แบบ private สำหรับรูปหลักฐาน/รายงาน (เข้าถึงผ่านแอปด้วย service role เท่านั้น)

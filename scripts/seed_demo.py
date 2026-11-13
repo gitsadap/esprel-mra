@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import app  # noqa: E402
-from db import DB  # noqa: E402
+from db import DB, hash_pw  # noqa: E402
 
 app.config["TESTING_NO_CSRF"] = True
 xlsx = sys.argv[1]
@@ -62,25 +62,35 @@ import io  # noqa: E402
 import fm001  # noqa: E402
 
 
-def apply_fm001(name, fac, espre=""):
-    d = fm001.example_form(name, fac, espre, head_name="หัวหน้าห้องปฏิบัติการ (ตัวอย่าง)")
+def apply_fm001(name, fac, email, espre=""):
+    """ส่งใบสมัครผ่านหน้าสาธารณะ (ไม่เข้าสู่ระบบ) → ได้บัญชีห้องปฏิบัติการของห้องนั้นเอง"""
+    d = fm001.example_form(name, fac, espre, head_name="หัวหน้าห้องปฏิบัติการ (ตัวอย่าง)", coord_email=email,
+                           coord_name=f"ผู้ประสานงาน {name.split()[-1]} (ตัวอย่าง)")
     d["file_survey"] = (io.BytesIO(b"%PDF-1.4 demo survey"), "ESPReL-survey.pdf", "application/pdf")
-    lab.post("/lab/apply", data=d, content_type="multipart/form-data")
+    r = app.test_client().post("/apply", data=d, content_type="multipart/form-data")
+    assert r.status_code == 200, r.status_code
+    # บัญชีตัวอย่าง: ตั้งรหัสผ่านที่จำง่าย (ใช้จริงระบบสร้างรหัสสุ่มและส่งทางอีเมล)
+    db = DB()
+    db.execute("UPDATE users SET password_hash=?, must_change_pw=0 WHERE username=?", (hash_pw("lab1234"), email))
+    db.commit()
+    db.close()
 
 
-apply_fm001("ห้องปฏิบัติการจุลชีววิทยาดิน AG 3105", "คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม", "2-0100-0201-0")
+DEMO_LABS = [("ห้องปฏิบัติการจุลชีววิทยาดิน AG 3105", "คณะเกษตรศาสตร์ ทรัพยากรธรรมชาติและสิ่งแวดล้อม", "ag3105@example.org"),
+             ("ห้องปฏิบัติการเคมีวิเคราะห์ SC 2201", "คณะวิทยาศาสตร์", "sc2201@example.org"),
+             ("ห้องปฏิบัติการวิศวกรรมสิ่งแวดล้อม EN 4102", "คณะวิศวกรรมศาสตร์", "en4102@example.org"),
+             ("ห้องปฏิบัติการเภสัชเคมี PH 3304", "คณะเภสัชศาสตร์", "ph3304@example.org")]
 print("demo audit", aid)
 admin = login("admin", "admin1234")
 for u, n, r, fac in [("prasert", "รศ.ดร.ประเสริฐ (ตัวอย่าง)", "lead", "คณะวิศวกรรมศาสตร์"),
                      ("wilai", "ผศ.ดร.วิไล (ตัวอย่าง)", "assessor", "คณะเภสัชศาสตร์"),
                      ("anan", "ดร.อนันต์ (ตัวอย่าง)", "assessor", "คณะวิทยาศาสตร์")]:
     admin.post("/users", data={"action": "add", "username": u, "full_name": n, "role": r, "faculty": fac, "password": "demo1234"})
-for name, fac in [("ห้องปฏิบัติการเคมีวิเคราะห์ SC 2201", "คณะวิทยาศาสตร์"),
-                  ("ห้องปฏิบัติการวิศวกรรมสิ่งแวดล้อม EN 4102", "คณะวิศวกรรมศาสตร์"),
-                  ("ห้องปฏิบัติการเภสัชเคมี PH 3304", "คณะเภสัชศาสตร์")]:
-    apply_fm001(name, fac)
+for name, fac, email in DEMO_LABS:
+    apply_fm001(name, fac, email)
 d = DB()
 ids = [r["id"] for r in d.execute("SELECT id FROM applications WHERE year_be=2570").fetchall()]
 d.close()
-lead.post("/planning", data={"year": "2570", "action": "approve", "app_id": [str(i) for i in ids]})
+lead.post("/planning", data={"year": "2570", "action": "approve", "app_id": [str(i) for i in ids[1:]]})
 print("applications", ids)
+print("บัญชีห้องปฏิบัติการตัวอย่าง (รหัสผ่าน lab1234): labuser (AG 2312), " + ", ".join(e for _, _, e in DEMO_LABS))

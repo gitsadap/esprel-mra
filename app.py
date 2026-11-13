@@ -17,6 +17,7 @@ from werkzeug.utils import secure_filename
 
 import auth_ldap
 import config
+import mailer
 import db as dbm
 import storage
 from db import get_db, hash_pw, log, now
@@ -254,6 +255,66 @@ def _display_name(fn):
     return keep.strip(" .")[:120]
 
 
+# ----------------------------------------------------------------- accounts / email helpers
+PW_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def gen_password(n=10):
+    """รหัสผ่านชั่วคราว (ไม่มีตัวที่สับสน เช่น 0/O, 1/l)"""
+    while True:
+        pw = "".join(secrets.choice(PW_ALPHABET) for _ in range(n))
+        if any(c.isdigit() for c in pw) and any(c.isupper() for c in pw) and any(c.islower() for c in pw):
+            return pw
+
+
+def base_url():
+    return (config.APP_BASE_URL or request.url_root).rstrip("/")
+
+
+def _reset_serializer():
+    from itsdangerous import URLSafeTimedSerializer
+    from flask import current_app
+    return URLSafeTimedSerializer(current_app.secret_key, salt="esprel-pw-reset")
+
+
+def make_reset_token(u):
+    # ผูกกับ hash รหัสผ่านปัจจุบัน → ใช้ได้ครั้งเดียว (เปลี่ยนรหัสแล้วลิงก์เดิมใช้ไม่ได้)
+    return _reset_serializer().dumps({"u": u["id"], "h": (u["password_hash"] or "")[-16:]})
+
+
+def read_reset_token(token, max_age=60 * 60 * 24):
+    from itsdangerous import BadSignature, SignatureExpired
+    try:
+        data = _reset_serializer().loads(token, max_age=max_age)
+    except (BadSignature, SignatureExpired):
+        return None
+    u = get_db().execute("SELECT * FROM users WHERE id=? AND active=1", (data.get("u"),)).fetchone()
+    if not u or (u["password_hash"] or "")[-16:] != data.get("h"):
+        return None
+    return u
+
+
+def mail_credentials(u, password, lab_name=None, app_no=None):
+    """อีเมลแจ้งชื่อผู้ใช้/รหัสผ่านชั่วคราวให้ห้องปฏิบัติการ"""
+    lines = [f"เรียน {u['full_name']}", ""]
+    if lab_name:
+        lines += [f"ระบบได้รับใบสมัครรับการตรวจประเมินความปลอดภัยห้องปฏิบัติการ (FM-001) ของ “{lab_name}” แล้ว"
+                  + (f" เลขที่ใบสมัคร {app_no}" if app_no else ""), ""]
+    lines += ["ข้อมูลสำหรับเข้าสู่ระบบ ESPReL MRA มหาวิทยาลัยนเรศวร",
+              f"  ชื่อผู้ใช้ : {u['username']}",
+              f"  รหัสผ่านชั่วคราว : {password}",
+              f"  เข้าสู่ระบบ : {base_url()}/login",
+              "", "เมื่อเข้าสู่ระบบครั้งแรก ระบบจะให้ตั้งรหัสผ่านใหม่", "",
+              "ขั้นตอนต่อไป",
+              "  1) เข้าสู่ระบบ → พิมพ์ใบสมัคร FM-001 ให้ผู้มีอำนาจลงนาม แล้วแนบไฟล์ที่ลงนามกลับเข้าระบบ",
+              "  2) ติดตามสถานะใบสมัคร กำหนดการตรวจ ผลการตรวจประเมิน และตอบแผนการแก้ไข (CAPA) ได้ในระบบ",
+              "", "หากท่านไม่ได้เป็นผู้ส่งใบสมัครนี้ โปรดแจ้งกองการวิจัยและนวัตกรรม มหาวิทยาลัยนเรศวร",
+              "", "ระบบ ESPReL MRA มหาวิทยาลัยนเรศวร (อีเมลอัตโนมัติ)"]
+    subj = f"[ESPReL MRA มน.] {'ได้รับใบสมัคร ' + app_no + ' · ' if app_no else ''}ข้อมูลเข้าสู่ระบบ"
+    return mailer.send(u["email"] or u["username"], subj, "\n".join(lines), kind="credentials", user_id=u["id"])
+
+
 def _disposition(name, inline=True):
     from urllib.parse import quote
     name = name or "file"
@@ -285,6 +346,11 @@ def register(app):
             g.user = get_db().execute("SELECT * FROM users WHERE id=? AND active=1", (uid,)).fetchone()
         if "csrf" not in session:
             session["csrf"] = secrets.token_urlsafe(24)
+        if (g.user and g.user["must_change_pw"] and request.endpoint not in ("account", "logout", "static")
+                and not request.path.startswith("/static")):
+            if is_api():
+                return jsonify(ok=False, error="กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน"), 403
+            return redirect(url_for("account"))
         if request.method == "POST" and not app.config.get("TESTING_NO_CSRF"):
             tok = request.headers.get("X-CSRF-Token") or request.form.get("_csrf")
             if not tok or tok != session.get("csrf"):
@@ -317,17 +383,25 @@ def register(app):
             password = request.form.get("password", "")
             db = get_db()
             u = db.execute("SELECT * FROM users WHERE lower(username)=?", (username,)).fetchone()
+            if not u and "@" in username:   # ห้องปฏิบัติการเข้าสู่ระบบด้วยอีเมลที่ลงทะเบียน
+                u = db.execute("SELECT * FROM users WHERE lower(email)=? AND role='lab' ORDER BY id LIMIT 1",
+                               (username,)).fetchone()
             ok_user = None
             if u and not u["active"]:
                 flash("บัญชีนี้ถูกปิดการใช้งาน", "error")
                 return render_template("login.html")
-            if u and u["password_hash"] and config.ALLOW_LOCAL_LOGIN and check_pw(u["password_hash"], password):
+            local_ok = config.ALLOW_LOCAL_LOGIN or (u and u["role"] == "lab")
+            if u and u["password_hash"] and local_ok and check_pw(u["password_hash"], password):
                 ok_user = u
-            elif auth_ldap.enabled():
+            elif auth_ldap.enabled() and "@" not in username:
                 try:
                     info = auth_ldap.authenticate(username, password)
                 except auth_ldap.LDAPError as ex:
                     flash(str(ex), "error")
+                    return render_template("login.html")
+                if info and not u and not config.LDAP_NEW_USER_ROLE:
+                    flash("บัญชีมหาวิทยาลัยของท่านยังไม่ได้รับสิทธิ์ในระบบ — โปรดติดต่อผู้ดูแลระบบ "
+                          "(ห้องปฏิบัติการ: เข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่ได้รับหลังส่งใบสมัคร)", "error")
                     return render_template("login.html")
                 if info:
                     if not u:
@@ -362,6 +436,51 @@ def register(app):
         session.clear()
         return redirect(url_for("login"))
 
+    @app.route("/forgot", methods=["GET", "POST"])
+    def forgot():
+        """ลืมรหัสผ่าน (บัญชีภายในระบบ) → ส่งลิงก์ตั้งรหัสผ่านใหม่ทางอีเมล"""
+        if request.method == "POST":
+            em = request.form.get("email", "").strip().lower()
+            db = get_db()
+            u = db.execute("""SELECT * FROM users WHERE (lower(email)=? OR lower(username)=?) AND active=1
+                              AND password_hash IS NOT NULL ORDER BY id LIMIT 1""", (em, em)).fetchone()
+            if u and (u["email"] or "@" in u["username"]):
+                link = f"{base_url()}{url_for('reset_pw', token=make_reset_token(u))}"
+                body = "\n".join([f"เรียน {u['full_name']}", "",
+                                   "มีการขอตั้งรหัสผ่านใหม่สำหรับบัญชี ESPReL MRA มหาวิทยาลัยนเรศวร ของท่าน",
+                                   f"  ชื่อผู้ใช้ : {u['username']}",
+                                   "กดลิงก์ต่อไปนี้เพื่อตั้งรหัสผ่านใหม่ (ใช้ได้ภายใน 24 ชั่วโมง และใช้ได้ครั้งเดียว)",
+                                   f"  {link}", "", "หากท่านไม่ได้ขอ ไม่ต้องดำเนินการใด ๆ รหัสผ่านเดิมยังใช้ได้",
+                                   "", "ระบบ ESPReL MRA มหาวิทยาลัยนเรศวร (อีเมลอัตโนมัติ)"])
+                st, _ = mailer.send(u["email"] or u["username"], "[ESPReL MRA มน.] ตั้งรหัสผ่านใหม่", body,
+                                    kind="reset", user_id=u["id"])
+                if st == "dev" and config.MAIL_DEV_SHOW:
+                    flash("โหมดทดสอบ (ยังไม่ได้ตั้งค่า SMTP) — ลิงก์ตั้งรหัสผ่านใหม่: " + link, "ok")
+            flash("หากอีเมลนี้มีบัญชีในระบบ ท่านจะได้รับลิงก์ตั้งรหัสผ่านใหม่ภายในไม่กี่นาที (ตรวจสอบกล่องจดหมายขยะด้วย)", "ok")
+            return redirect(url_for("login"))
+        return render_template("forgot.html")
+
+    @app.route("/reset/<token>", methods=["GET", "POST"])
+    def reset_pw(token):
+        u = read_reset_token(token)
+        if not u:
+            flash("ลิงก์ตั้งรหัสผ่านใหม่ไม่ถูกต้องหรือหมดอายุแล้ว — กรุณาขอใหม่", "error")
+            return redirect(url_for("forgot"))
+        if request.method == "POST":
+            pw = request.form.get("new", "")
+            if len(pw) < 8:
+                flash("รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร", "error")
+            elif pw != request.form.get("confirm"):
+                flash("ยืนยันรหัสผ่านไม่ตรงกัน", "error")
+            else:
+                db = get_db()
+                db.execute("UPDATE users SET password_hash=?, must_change_pw=0, auth_source='local' WHERE id=?",
+                           (hash_pw(pw), u["id"]))
+                db.commit()
+                flash("ตั้งรหัสผ่านใหม่แล้ว — เข้าสู่ระบบด้วยรหัสผ่านใหม่", "ok")
+                return redirect(url_for("login"))
+        return render_template("reset.html", u=u)
+
     @app.route("/home")
     @login_required
     def home():
@@ -378,7 +497,11 @@ def register(app):
             elif len(request.form.get("new", "")) < 8:
                 flash("รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร", "error")
             else:
-                get_db().execute("UPDATE users SET password_hash=? WHERE id=?", (hash_pw(request.form["new"]), g.user["id"]))
+                if request.form["new"] == request.form.get("old"):
+                    flash("รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม", "error")
+                    return render_template("account.html")
+                get_db().execute("UPDATE users SET password_hash=?, must_change_pw=0 WHERE id=?",
+                                 (hash_pw(request.form["new"]), g.user["id"]))
                 get_db().commit()
                 flash("เปลี่ยนรหัสผ่านเรียบร้อย", "ok")
                 return redirect(url_for("home"))
@@ -444,10 +567,27 @@ def register(app):
         if not username:
             return
         db = get_db()
-        u = db.execute("SELECT * FROM users WHERE lower(username)=?", (username,)).fetchone()
-        uid = u["id"] if u else db.insert(
-            "INSERT INTO users(username,full_name,role,auth_source,created_at) VALUES(?,?,?,?,?)",
-            (username, username, "lab", "ldap", now()))
+        u = db.execute("SELECT * FROM users WHERE lower(username)=? OR (lower(email)=? AND role='lab')",
+                       (username, username)).fetchone()
+        if u:
+            uid = u["id"]
+        elif "@" in username and EMAIL_RE.match(username):
+            # บัญชีห้องปฏิบัติการใหม่ (อีเมล + รหัสผ่านที่ระบบสร้าง) แล้วส่งรหัสผ่านทางอีเมล
+            pw = gen_password()
+            lab = db.execute("SELECT name FROM labs WHERE id=?", (lab_id,)).fetchone()
+            uid = db.insert("""INSERT INTO users(username,password_hash,full_name,email,role,auth_source,must_change_pw,created_at)
+                               VALUES(?,?,?,?,'lab','local',1,?)""", (username, hash_pw(pw), username, username, now()))
+            db.commit()
+            st, err = mail_credentials(db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone(), pw,
+                                       lab["name"] if lab else None)
+            if st == "sent":
+                flash(f"สร้างบัญชีห้องปฏิบัติการ {username} และส่งรหัสผ่านทางอีเมลแล้ว", "ok")
+            else:
+                flash(f"สร้างบัญชีห้องปฏิบัติการ {username} แล้ว — {'โหมดทดสอบ' if st == 'dev' else 'ส่งอีเมลไม่สำเร็จ'}: "
+                      f"รหัสผ่านชั่วคราว {pw}", "ok" if st == "dev" else "error")
+        else:
+            flash("ผูกบัญชีห้องปฏิบัติการ: ใส่อีเมลของผู้ประสานงานห้อง (ระบบจะสร้างบัญชีและส่งรหัสผ่านให้)", "error")
+            return
         db.execute("INSERT INTO lab_members(lab_id,user_id) VALUES(?,?) ON CONFLICT DO NOTHING", (lab_id, uid))
 
     def _save_team(audit_id, lead, member_ids, element_map):
@@ -962,6 +1102,125 @@ def register(app):
                 seq = max(seq, int(m.group(1)))
         db.execute("UPDATE applications SET app_no=? WHERE id=?", (f"{seq + 1:03d}/{year_be}", app_id))
 
+    def _check_uploads(kinds):
+        """ตรวจชนิด/ขนาดไฟล์ก่อนบันทึกข้อมูลใด ๆ คืนรายการข้อผิดพลาด"""
+        errs = []
+        for kind in kinds:
+            for fs in request.files.getlist(f"file_{kind}"):
+                if not fs or not fs.filename:
+                    continue
+                if (fs.mimetype or "").lower() not in DOC_TYPES:
+                    errs.append(f"{fs.filename}: รองรับเฉพาะ PDF หรือรูปภาพ JPG/PNG")
+                fs.stream.seek(0, 2)
+                if fs.stream.tell() > 8 * 1024 * 1024:
+                    errs.append(f"{fs.filename}: ไฟล์ใหญ่เกิน 8 MB")
+                fs.stream.seek(0)
+        return errs
+
+    def _save_app_files(app_id, kinds, uid):
+        db = get_db()
+        for kind in kinds:
+            for fs in request.files.getlist(f"file_{kind}"):
+                if not fs or not fs.filename:
+                    continue
+                try:
+                    path, name, ctype, size = save_upload(fs, f"applications/{app_id}/{kind}", DOC_TYPES)
+                except (ValueError, RuntimeError) as ex:
+                    flash(f"{fs.filename}: {ex}", "error")
+                    continue
+                db.execute("""INSERT INTO app_files(application_id,kind,path,filename,content_type,size,uploaded_by,created_at)
+                              VALUES(?,?,?,?,?,?,?,?)""", (app_id, kind, path, name, ctype, size, uid, now()))
+
+    def _notify_leads(lab_name, app_no, year_be):
+        rows = get_db().execute("SELECT * FROM users WHERE role IN ('lead','admin') AND active=1 AND email IS NOT NULL").fetchall()
+        for u in rows:
+            mailer.send(u["email"], f"[ESPReL MRA มน.] ใบสมัครใหม่ {app_no}: {lab_name}",
+                        f"มีใบสมัคร FM-001 ใหม่ ปี {year_be}\n  ห้องปฏิบัติการ: {lab_name}\n  เลขที่ใบสมัคร: {app_no}\n\n"
+                        f"พิจารณาได้ที่ {base_url()}{url_for('planning', year=year_be)}", kind="notify", user_id=u["id"])
+
+    @app.route("/apply", methods=["GET", "POST"])
+    def apply_public():
+        """ใบสมัคร FM-001 สำหรับทุกคน (ไม่ต้องเข้าสู่ระบบ) → สร้างบัญชีห้องปฏิบัติการ + ส่งรหัสผ่านทางอีเมล"""
+        import json
+        import fm001
+        if g.user:
+            return redirect(url_for("lab_apply", **request.args))
+        db = get_db()
+        this_year = dbm.datetime.now().year + 543
+        if request.method == "GET":
+            d = {"organization": "มหาวิทยาลัยนเรศวร", "first_time": "1", "scores": fm001.blank_scores()}
+            return render_template("fm001_form.html", ap=None, d=d, lab=None, files={}, fm=fm001, this_year=this_year,
+                                   editable=True, year_be=request.args.get("year", type=int) or this_year, public=True)
+        d = fm001.parse(request.form)
+        year_be = request.form.get("year_be", type=int) or this_year
+        d["coord_email"] = d["coord_email"].lower()
+
+        def again(msg):
+            flash(msg, "error")
+            return render_template("fm001_form.html", ap=None, d=d, lab=None, files={}, fm=fm001, this_year=this_year,
+                                   editable=True, year_be=year_be, public=True), 400
+        if request.form.get("website"):          # honeypot กันบอท
+            return again("ส่งใบสมัครไม่สำเร็จ")
+        ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip()
+        from datetime import timedelta
+        since = (dbm.datetime.now() - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+        n_recent = db.execute("SELECT COUNT(*) n FROM audit_log WHERE action='public_apply' AND detail=? AND created_at>?",
+                              (ip, since)).fetchone()["n"]
+        if n_recent >= config.PUBLIC_APPLY_PER_HOUR:
+            return again("ส่งใบสมัครจากเครื่องนี้บ่อยเกินไป กรุณาลองใหม่ภายหลัง")
+        n_survey = sum(1 for f in request.files.getlist("file_survey") if f and f.filename)
+        errs = fm001.validate(d, n_survey)
+        if d["coord_email"] and not EMAIL_RE.match(d["coord_email"]):
+            errs.append("13. อีเมลผู้ประสานงานไม่ถูกต้อง")
+        errs += _check_uploads(("survey", "other"))
+        if errs:
+            return again("ยังส่งไม่ได้ — กรุณาตรวจสอบ: " + " · ".join(errs)
+                         + (" (โปรดแนบไฟล์อีกครั้ง)" if n_survey else ""))
+        email = d["coord_email"]
+        u = db.execute("SELECT * FROM users WHERE lower(username)=? OR lower(email)=? ORDER BY id LIMIT 1",
+                       (email, email)).fetchone()
+        if u:
+            dup = db.execute("""SELECT ap.app_no FROM applications ap JOIN labs l ON l.id=ap.lab_id
+                                WHERE l.owner_user_id=? AND lower(l.name)=? AND ap.year_be=?""",
+                             (u["id"], d["name"].lower(), year_be)).fetchone()
+            if dup:
+                return render_template("apply_done.html", dup=True, app_no=dup["app_no"], lab_name=d["name"],
+                                       email=email, status=None, password=None, year_be=year_be)
+        new_pw = None
+        if not u:
+            new_pw = gen_password()
+            uid = db.insert("""INSERT INTO users(username,password_hash,full_name,email,faculty,role,auth_source,
+                               must_change_pw,created_at) VALUES(?,?,?,?,?,'lab','local',1,?)""",
+                            (email, hash_pw(new_pw), d["coord_name"] or email, email, d["faculty"] or None, now()))
+            u = db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+        affil = " ".join(x for x in (d["department"], d["faculty"], d["organization"]) if x)
+        # สร้างห้องใหม่เสมอ (ไม่ผูกกับห้องเดิมจากข้อมูลที่กรอก เพื่อไม่ให้ผู้อื่นเข้าถึงผลการตรวจของห้องอื่นได้)
+        lid = db.insert("""INSERT INTO labs(name,espre_no,faculty,department,organization,phone,fax,head_name,email,contact,
+                           affiliation,owner_user_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)""",
+                        (d["name"], d["espre_no"], d["faculty"], d["department"], d["organization"], d["phone"], d["fax"],
+                         d["head_name"], email, f'{d["coord_name"]} {d["coord_phone"]}'.strip(), affil, u["id"], now()))
+        db.execute("INSERT INTO lab_members(lab_id,user_id) VALUES(?,?) ON CONFLICT DO NOTHING", (lid, u["id"]))
+        app_id = db.insert("""INSERT INTO applications(lab_id,year_be,status,created_by,created_at,form,submitted_at,updated_at)
+                              VALUES(?,?,'pending',?,?,?,?,?)""",
+                           (lid, year_be, u["id"], now(), json.dumps(d, ensure_ascii=False), now(), now()))
+        _auto_app_no(app_id, year_be)
+        _save_app_files(app_id, ("survey", "other"), u["id"])
+        db.execute("INSERT INTO audit_log(user_id,action,detail,created_at) VALUES(?,?,?,?)", (u["id"], "public_apply", ip, now()))
+        db.commit()
+        app_no = db.execute("SELECT app_no FROM applications WHERE id=?", (app_id,)).fetchone()["app_no"]
+        if new_pw:
+            status, _ = mail_credentials(u, new_pw, d["name"], app_no)
+        else:
+            status, _ = mailer.send(email, f"[ESPReL MRA มน.] ได้รับใบสมัคร {app_no} · {d['name']}",
+                                    f"เรียน {u['full_name']}\n\nระบบได้รับใบสมัคร FM-001 ของ “{d['name']}” เลขที่ {app_no} แล้ว\n"
+                                    f"ห้องนี้ถูกเพิ่มในบัญชีเดิมของท่าน (ชื่อผู้ใช้ {u['username']})\n"
+                                    f"เข้าสู่ระบบ: {base_url()}/login  (ลืมรหัสผ่าน: {base_url()}/forgot)\n\n"
+                                    "ระบบ ESPReL MRA มหาวิทยาลัยนเรศวร (อีเมลอัตโนมัติ)", kind="apply", user_id=u["id"])
+        _notify_leads(d["name"], app_no, year_be)
+        show_pw = new_pw if (status == "dev" and config.MAIL_DEV_SHOW) else None
+        return render_template("apply_done.html", dup=False, app_no=app_no, lab_name=d["name"], email=email,
+                               username=u["username"], status=status, password=show_pw, existing=not new_pw, year_be=year_be)
+
     @app.route("/lab/register")
     @login_required
     def lab_register():
@@ -1358,6 +1617,21 @@ def register(app):
                                 role, "local" if pw else "ldap", now()))
                     db.commit()
                     flash("เพิ่มผู้ใช้เรียบร้อย", "ok")
+            elif act == "resetpw":
+                u = db.execute("SELECT * FROM users WHERE id=?", (request.form.get("uid", type=int),)).fetchone()
+                if u and (g.user["role"] == "admin" or u["role"] == "lab"):
+                    pw = gen_password()
+                    db.execute("UPDATE users SET password_hash=?, must_change_pw=1, auth_source='local' WHERE id=?",
+                               (hash_pw(pw), u["id"]))
+                    db.commit()
+                    u = db.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
+                    st, err = mail_credentials(u, pw)
+                    if st == "sent":
+                        flash(f"ส่งรหัสผ่านใหม่ไปที่ {u['email'] or u['username']} แล้ว", "ok")
+                    elif st == "dev":
+                        flash(f"โหมดทดสอบ (ยังไม่ได้ตั้งค่า SMTP) — รหัสผ่านใหม่ของ {u['username']}: {pw}", "ok")
+                    else:
+                        flash(f"ตั้งรหัสผ่านใหม่แล้วแต่ส่งอีเมลไม่สำเร็จ ({err}) — รหัสผ่านใหม่: {pw}", "error")
             elif act == "update":
                 uid = request.form.get("uid", type=int)
                 u = db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
@@ -1380,8 +1654,13 @@ def register(app):
         if role:
             q += " WHERE role=?"
             args = (role,)
+        lab_map = {}
+        for r in db.execute("""SELECT m.user_id, l.name FROM lab_members m JOIN labs l ON l.id=m.lab_id
+                               UNION SELECT owner_user_id, name FROM labs WHERE owner_user_id IS NOT NULL""").fetchall():
+            if r["name"] not in lab_map.setdefault(r["user_id"], []):
+                lab_map[r["user_id"]].append(r["name"])
         return render_template("users.html", users=db.execute(q + " ORDER BY active DESC, role, full_name", args).fetchall(),
-                               role=role)
+                               role=role, lab_map=lab_map)
 
     @app.route("/settings", methods=["GET", "POST"])
     @roles("admin", "lead")

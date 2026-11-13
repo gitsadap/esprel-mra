@@ -1,21 +1,31 @@
 {% extends "base.html" %}
 {% block title %}เข้าสู่ระบบ{% endblock %}
 {% block topbar %}{% endblock %}
+{% block flashes %}{% endblock %}
 {% block body %}
 <div class="login">
+  <div style="width:100%;max-width:400px">
   <form class="card" method="post">
     <div class="logo">ES</div>
     <h1 style="margin-bottom:2px">ESPReL MRA</h1>
     <p class="muted" style="margin-top:0">ระบบตรวจประเมินความปลอดภัยห้องปฏิบัติการ<br>มหาวิทยาลัยนเรศวร</p>
-    <div class="field"><label>{{ 'บัญชีผู้ใช้มหาวิทยาลัย (NU Account)' if ldap_enabled else 'ชื่อผู้ใช้' }}</label>
-      <input type="text" name="username" autocomplete="username" autocapitalize="off" required autofocus></div>
+    {% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="flash {{ cat }} inline">{{ msg }}</div>{% endfor %}
+    <div class="field"><label>อีเมล (ห้องปฏิบัติการ) หรือ{{ 'บัญชี NU (ผู้ตรวจ)' if ldap_enabled else 'ชื่อผู้ใช้' }}</label>
+      <input type="text" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus></div>
     <div class="field"><label>รหัสผ่าน</label><input type="password" name="password" autocomplete="current-password" required></div>
     <button class="btn primary block" type="submit">เข้าสู่ระบบ</button>
+    <div class="row" style="justify-content:space-between;margin-top:10px;font-size:.9rem">
+      <a href="{{ url_for('forgot') }}">ลืมรหัสผ่าน?</a>
+    </div>
     <p class="hint" style="margin-bottom:0">
-      {% if ldap_enabled %}ใช้ชื่อผู้ใช้และรหัสผ่านเดียวกับระบบของมหาวิทยาลัย · ผู้ตรวจประเมินต้องได้รับสิทธิ์จากผู้ดูแลระบบ ·
-      ห้องปฏิบัติการเข้าสู่ระบบแล้วลงทะเบียนห้องได้ทันที
-      {% else %}โหมดทดสอบ (ยังไม่ได้ตั้งค่า LDAP): admin / admin1234 · lead / lead1234 · auditor1 / audit1234 · labuser / lab1234{% endif %}
+      ห้องปฏิบัติการ: ใช้อีเมลผู้ประสานงานและรหัสผ่านที่ได้รับทางอีเมลหลังส่งใบสมัคร
+      {% if ldap_enabled %}· ผู้ตรวจประเมิน/ทีมงาน: ใช้บัญชีเดียวกับระบบของมหาวิทยาลัย{% else %}<br>โหมดทดสอบ: admin / admin1234 · lead / lead1234 · auditor1 / audit1234 · ห้องปฏิบัติการ: labuser หรือ sc2201@example.org / lab1234{% endif %}
     </p>
   </form>
+  <a class="card apply-cta" href="{{ url_for('apply_public') }}">
+    <span style="font-size:1.6rem">📝</span>
+    <span><b>สมัครรับการตรวจประเมิน (FM-001)</b><br><small class="muted">ยังไม่มีบัญชี? กรอกใบสมัครได้ทันที ระบบจะส่งรหัสผ่านให้ทางอีเมล</small></span>
+  </a>
+  </div>
 </div>
 {% endblock %}
