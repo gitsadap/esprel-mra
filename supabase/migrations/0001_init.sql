@@ -163,6 +163,30 @@ CREATE TABLE IF NOT EXISTS audit_log(
   detail TEXT,
   created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS assessors(
+  id BIGSERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  full_name TEXT NOT NULL,
+  name_key TEXT,
+  affiliation TEXT,
+  faculty TEXT,
+  org_type TEXT NOT NULL DEFAULT 'nu',
+  email TEXT,
+  phone TEXT,
+  note TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT,
+  updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS assessor_trainings(
+  id BIGSERIAL PRIMARY KEY,
+  assessor_id INTEGER NOT NULL REFERENCES assessors(id) ON DELETE CASCADE,
+  course TEXT NOT NULL,
+  year_be INTEGER,
+  note TEXT,
+  created_at TEXT,
+  UNIQUE(assessor_id, course, year_be)
+);
 CREATE TABLE IF NOT EXISTS mail_log(
   id BIGSERIAL PRIMARY KEY,
   to_addr TEXT NOT NULL,
@@ -180,6 +204,7 @@ CREATE TABLE IF NOT EXISTS settings(
 CREATE INDEX IF NOT EXISTS ix_attach_item ON attachments(audit_id, item_id);
 CREATE INDEX IF NOT EXISTS ix_log_audit ON audit_log(audit_id);
 CREATE INDEX IF NOT EXISTS ix_audits_year ON audits(year_be);
+CREATE INDEX IF NOT EXISTS ix_assessor_user ON assessors(user_id);
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE labs ENABLE ROW LEVEL SECURITY;
@@ -195,6 +220,8 @@ ALTER TABLE attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE element_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assessors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assessor_trainings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mail_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 

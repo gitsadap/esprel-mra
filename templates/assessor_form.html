@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ a.full_name if a else 'เพิ่มผู้ตรวจ' }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div style="min-width:0"><div class="crumb"><a href="{{ url_for('assessors_page') }}">ทะเบียนผู้ตรวจประเมิน</a></div>
+    <h1>{{ a.full_name if a else 'เพิ่มผู้ตรวจประเมิน' }}</h1>
+    {% if a %}<div class="muted">{{ a.affiliation or '' }}</div>{% endif %}</div>
+</div>
+<div class="grid g2" style="align-items:start">
+<form method="post" class="card">
+  <input type="hidden" name="action" value="save">
+  <h3>ข้อมูลผู้ตรวจ</h3>
+  <div class="field"><label>ชื่อ-สกุล (พร้อมคำนำหน้า/ตำแหน่งทางวิชาการ — แสดงในรายงาน) <span class="star">*</span></label>
+    <input type="text" name="full_name" value="{{ a.full_name if a else '' }}" required></div>
+  <div class="field"><label>สังกัด</label><input type="text" name="affiliation" value="{{ a.affiliation or '' if a else '' }}" placeholder="เช่น คณะวิทยาศาสตร์ มหาวิทยาลัยนเรศวร"></div>
+  <div class="grid g2" style="gap:0 12px">
+    <div class="field"><label>คณะ/หน่วยงาน (กันผลประโยชน์ทับซ้อน)</label><input type="text" name="faculty" value="{{ a.faculty or '' if a else '' }}" placeholder="เว้นว่าง = ใช้จากสังกัด"></div>
+    <div class="field"><label>ประเภท</label><select name="org_type">
+      <option value="nu" {{ 'selected' if a and a.org_type == 'nu' }}>บุคลากร มน.</option>
+      <option value="external" {{ 'selected' if a and a.org_type == 'external' }}>หน่วยงานภายนอก</option></select></div>
+    <div class="field"><label>อีเมล</label><input type="email" name="email" value="{{ a.email or '' if a else '' }}"></div>
+    <div class="field"><label>เบอร์โทรศัพท์</label><input type="tel" name="phone" value="{{ a.phone or '' if a else '' }}"></div>
+  </div>
+  <div class="field"><label>หมายเหตุ</label><textarea name="note" style="min-height:60px">{{ a.note or '' if a else '' }}</textarea></div>
+  <label class="row" style="gap:6px;margin-bottom:12px"><input type="checkbox" name="active" value="1" {{ 'checked' if not a or a.active }} style="width:20px;height:20px"> พร้อมรับมอบหมายตรวจ (ปิด = ไม่แสดงในการจัดทีม)</label>
+
+  <h3>ประวัติการอบรม</h3>
+  {% if a and a.trainings %}
+  <div class="tbl-wrap" style="margin-bottom:8px"><table class="tbl">
+    <thead><tr><th>หลักสูตร</th><th>ปี พ.ศ.</th><th>ลบ</th></tr></thead>
+    <tbody>{% for t in a.trainings %}<tr><td><span class="badge {{ 'green' if t.course == 'Peer' else 'blue' }}">{{ t.course }}</span> <small class="muted">{{ COURSES[t.course] }}</small></td>
+      <td>{{ t.year_be or '—' }}</td><td><input type="checkbox" name="del_training" value="{{ t.id }}" style="width:18px;height:18px" aria-label="ลบ"></td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  <div class="row" style="gap:8px;align-items:flex-end">
+    <div class="field" style="flex:1;min-width:160px;margin:0"><label>เพิ่มการอบรม</label><select name="new_course"><option value="">—</option>
+      {% for k, v in COURSES.items() %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}</select></div>
+    <div class="field" style="width:120px;margin:0"><label>ปี พ.ศ.</label><input type="number" name="new_year" value="{{ this_year }}"></div>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:space-between">
+    <button class="btn primary">บันทึก</button>
+    {% if a %}<button class="btn sm ghost danger" type="submit" form="del-as">ลบออกจากทะเบียน</button>{% endif %}
+  </div>
+</form>
+
+{% if a %}
+<div>
+  <div class="card" style="margin-bottom:14px">
+    <h3>สิทธิ์เข้าระบบ</h3>
+    {% if a.user_id %}
+      <p style="margin:0 0 6px">✓ มีบัญชีแล้ว: <b>{{ a.username }}</b> · {{ ROLE_TH.get(a.user_role, a.user_role) }} ·
+        {{ 'บัญชี NU (LDAP)' if a.auth_source == 'ldap' else 'อีเมล + รหัสผ่าน' }}{% if not a.user_active %} · <span class="badge gray">ปิดใช้งาน</span>{% endif %}</p>
+      <p class="hint" style="margin:0">{{ 'เข้าสู่ระบบล่าสุด ' ~ thai_date(a.last_login, True) if a.last_login else 'ยังไม่เคยเข้าสู่ระบบ' }} · เปลี่ยนบทบาท/ส่งรหัสผ่านใหม่ได้ที่เมนู <a href="{{ url_for('users') }}">ผู้ใช้</a></p>
+    {% else %}
+      <p class="muted" style="margin-top:0">ยังไม่มีบัญชี — {{ 'จะเข้าสู่ระบบด้วยบัญชี NU “' ~ a.email.split('@')[0] ~ '”' if a.email and a.email.endswith('@nu.ac.th') else ('ระบบจะสร้างรหัสผ่านและส่งไปที่ ' ~ a.email if a.email else 'ต้องมีอีเมลก่อน') }}</p>
+      <form method="post"><input type="hidden" name="action" value="account"><button class="btn primary" {{ 'disabled' if not a.email }}>🔑 เปิดสิทธิ์เข้าระบบ (ผู้ตรวจประเมิน)</button></form>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3>ประวัติการตรวจประเมิน ({{ audits|length }})</h3>
+    {% for x in audits %}
+      <div class="row" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px">
+        <a href="{{ url_for('audit_view', audit_id=x.id) }}">{{ x.lab_name }}</a><span class="spacer"></span>
+        <small class="muted">ปี {{ x.year_be }}</small>{% if x.is_lead %}<span class="badge amber">หัวหน้าทีม</span>{% endif %}
+        <span class="badge {{ STATUS_TH[x.status][1] }}">{{ STATUS_TH[x.status][0] }}</span></div>
+    {% else %}<p class="muted" style="margin:0">{{ 'ยังไม่เคยได้รับมอบหมาย' if a.user_id else 'เปิดสิทธิ์เข้าระบบก่อน จึงจัดเข้าทีมตรวจได้' }}</p>{% endfor %}
+  </div>
+</div>
+<form id="del-as" method="post" data-confirm="ลบ {{ a.full_name }} ออกจากทะเบียนผู้ตรวจ? (ข้อมูลส่วนบุคคลและประวัติการอบรมจะถูกลบ)"><input type="hidden" name="action" value="delete"></form>
+{% endif %}
+</div>
+{% endblock %}

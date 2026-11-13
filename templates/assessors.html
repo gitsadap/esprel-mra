@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}ทะเบียนผู้ตรวจประเมิน{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a></div>
+    <h1>ทะเบียนผู้ตรวจประเมิน</h1>
+    <div class="muted">รายชื่อผู้ผ่านการอบรม ESPReL / Peer · เปิดสิทธิ์เข้าระบบ · ประวัติการตรวจ — ข้อมูลส่วนบุคคล เห็นเฉพาะหัวหน้าผู้ตรวจและผู้ดูแลระบบ</div></div>
+  <div class="row">
+    <button class="btn" type="button" onclick="document.getElementById('imp').classList.toggle('hide')">⇪ นำเข้า Excel</button>
+    <a class="btn brand" href="{{ url_for('assessor_edit') }}">+ เพิ่มผู้ตรวจ</a>
+  </div>
+</div>
+
+<form id="imp" method="post" enctype="multipart/form-data" class="card {{ 'hide' if stats.all }}" style="margin-bottom:14px;border-left:5px solid var(--primary)">
+  <input type="hidden" name="action" value="import">
+  <h3 style="margin-bottom:4px">นำเข้ารายชื่อผู้อบรมจาก Excel</h3>
+  <p class="hint" style="margin-top:0">หัวตาราง: ลำดับที่ · รายชื่อ · สังกัด · อีเมล์ · เบอร์โทรศัพท์ · ESPReL · Peer (ใส่ / = ผ่านการอบรม) — อ่านทุกชีต
+    รายชื่อซ้ำ (อีเมลหรือชื่อเดียวกัน) รวมเป็นคนเดียว · ชีตที่ชื่อเรื่องมีคำว่า “Peer” ถือว่าทุกคนผ่าน Peer · นำเข้าซ้ำได้ ไม่ทับข้อมูลที่แก้ไขในระบบ</p>
+  <div class="row" style="align-items:flex-end;gap:10px">
+    <div class="field" style="flex:1;min-width:220px;margin:0"><label>ไฟล์ Excel (.xlsx)</label><input type="file" name="file" accept=".xlsx,.xlsm" required></div>
+    <div class="field" style="width:170px;margin:0"><label>ปีที่อบรม (ถ้าไฟล์ไม่ระบุ)</label><input type="number" name="year" value="{{ this_year }}" min="2550" max="2600"></div>
+    <button class="btn primary">นำเข้า</button>
+  </div>
+</form>
+
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="card kpi"><div class="k-label">ผู้ตรวจในทะเบียน</div><div class="k-val tnum">{{ stats.all }}</div>
+    <div class="k-sub">จาก {{ stats.faculties }} คณะ/หน่วยงาน มน. · ภายนอก {{ stats.external }} คน</div></div>
+  <div class="card kpi"><div class="k-label">ผ่านอบรม Peer</div><div class="k-val tnum lv-good">{{ stats.peer }}</div>
+    <div class="k-sub">พร้อมเป็นผู้ตรวจประเมิน</div></div>
+  <div class="card kpi"><div class="k-label">ผ่านอบรม ESPReL</div><div class="k-val tnum" style="color:var(--primary)">{{ stats.esprel }}</div></div>
+  <div class="card kpi"><div class="k-label">เปิดสิทธิ์เข้าระบบแล้ว</div><div class="k-val tnum">{{ stats.account }}<small class="muted" style="font-size:1rem"> / {{ stats.all }}</small></div></div>
+</div>
+
+<div class="card">
+  <form method="get" class="row" style="gap:8px;margin-bottom:10px">
+    <input type="search" name="q" value="{{ q }}" placeholder="ค้นหาชื่อ สังกัด อีเมล เบอร์โทร" style="flex:1;min-width:200px">
+    <input type="hidden" name="f" value="{{ f }}">
+    <div class="seg">{% for k, v in [('', 'ทั้งหมด'), ('peer', 'ผ่าน Peer'), ('esprel_only', 'ยังไม่ผ่าน Peer'), ('nu', 'มน.'), ('external', 'ภายนอก'), ('noaccount', 'ยังไม่มีบัญชี'), ('inactive', 'ปิดใช้งาน')] %}
+      <a href="{{ url_for('assessors_page', q=q or None, f=k or None) }}"><button type="button" class="{{ 'on' if f == k }}">{{ v }}</button></a>{% endfor %}</div>
+  </form>
+
+  <form method="post" id="bulk">
+    <input type="hidden" name="action" value="accounts">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <label class="row" style="gap:6px;font-size:.9rem"><input type="checkbox" style="width:18px;height:18px"
+        onclick="document.querySelectorAll('.asc:not(:disabled)').forEach(c=>c.checked=this.checked)"> เลือกทั้งหมด ({{ rows|length }})</label>
+      <button class="btn sm primary">🔑 เปิดสิทธิ์เข้าระบบให้ที่เลือก</button>
+    </div>
+    <div class="as-list">
+    {% for r in rows %}
+      <div class="as-card {{ 'off' if not r.active }}">
+        <input type="checkbox" class="asc" name="aid" value="{{ r.id }}" {{ 'disabled' if r.user_id }} aria-label="เลือก {{ r.full_name }}">
+        <div class="as-main">
+          <a href="{{ url_for('assessor_edit', aid=r.id) }}" class="as-name">{{ r.full_name }}</a>
+          <div class="as-aff">{{ r.affiliation or '—' }}</div>
+          <div class="as-contact">{% if r.email %}✉ {{ r.email }}{% endif %}{% if r.phone %} · ☎ {{ r.phone }}{% endif %}</div>
+        </div>
+        <div class="as-tags">
+          {% if r.org_type == 'external' %}<span class="badge violet">ภายนอก</span>{% endif %}
+          {% for t in r.trainings %}<span class="badge {{ 'green' if t.course == 'Peer' else 'blue' }}">{{ t.course }}{% if t.year_be %} {{ t.year_be }}{% endif %}</span>{% endfor %}
+          {% if not r.trainings %}<span class="badge gray">ยังไม่มีประวัติอบรม</span>{% endif %}
+          {% if r.user_id %}<span class="badge teal" title="{{ r.username }}">✓ {{ ROLE_TH.get(r.user_role, r.user_role) }}{{ ' · NU' if r.auth_source == 'ldap' else '' }}</span>
+          {% else %}<span class="badge gray">ยังไม่มีบัญชี</span>{% endif %}
+          {% if r.n_audits %}<span class="badge amber">ตรวจแล้ว {{ r.n_audits }} ห้อง</span>{% endif %}
+          {% if not r.active %}<span class="badge gray">ปิดใช้งาน</span>{% endif %}
+        </div>
+      </div>
+    {% else %}
+      <div class="empty">{{ 'ไม่พบรายชื่อตามเงื่อนไข' if stats.all else 'ยังไม่มีรายชื่อ — นำเข้าจาก Excel หรือกด “+ เพิ่มผู้ตรวจ”' }}</div>
+    {% endfor %}
+    </div>
+  </form>
+  <p class="hint" style="margin-bottom:0">เปิดสิทธิ์เข้าระบบ: อีเมล @nu.ac.th → เข้าสู่ระบบด้วยบัญชี NU (LDAP) · อีเมลภายนอก → ระบบสร้างรหัสผ่านและส่งทางอีเมล ·
+    บทบาทเริ่มต้น “ผู้ตรวจประเมิน” (ปรับเป็นหัวหน้าผู้ตรวจที่เมนู “ผู้ใช้”) · คณะ/หน่วยงานใช้กันผลประโยชน์ทับซ้อนเวลาจัดทีม</p>
+</div>
+{% endblock %}

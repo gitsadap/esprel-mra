@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="csrf-token" content="{{ csrf_token }}">
 <title>{% block title %}ESPReL MRA{% endblock %} · ESPReL MRA NU</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=6">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=7">
 {% block head %}{% endblock %}
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
@@ -29,6 +29,7 @@
     <a href="{{ url_for('planning') }}" class="{{ 'on' if request.endpoint=='planning' }}">ใบสมัคร & จัดทีม</a>
     <a href="{{ url_for('audit_new') }}" class="{{ 'on' if request.endpoint=='audit_new' }}">+ เพิ่มการตรวจ</a>
     <a href="{{ url_for('import_xlsx') }}" class="{{ 'on' if request.endpoint=='import_xlsx' }}">นำเข้า Excel</a>
+    <a href="{{ url_for('assessors_page') }}" class="{{ 'on' if request.endpoint in ('assessors_page','assessor_edit') }}">ผู้ตรวจ</a>
     <a href="{{ url_for('users') }}" class="{{ 'on' if request.endpoint=='users' }}">ผู้ใช้</a>
     <a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint=='settings' }}">ตั้งค่า</a>
     {% endif %}
@@ -57,7 +58,7 @@
   <div class="actions" id="modal-actions"></div>
 </div></div>
 
-<script src="{{ url_for('static', filename='js/app.js') }}?v=6"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=7"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

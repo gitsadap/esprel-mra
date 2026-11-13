@@ -58,7 +58,10 @@
       <button class="btn sm">คำนวณใหม่</button></form></div>
   <div style="margin-bottom:10px">
     <span class="muted" style="font-size:.85rem">ภาระงานหลังจัดทีม (จำนวนห้อง/คน รวมห้องที่มีอยู่แล้ว):</span><br>
-    {% for u in assessors %}<span class="load-chip">{{ u.full_name }} <b>{{ load.get(u.id, 0) }}</b>{% if u.faculty %}<small class="muted">· {{ u.faculty[:18] }}</small>{% endif %}</span>{% endfor %}
+    {% for u in assessors %}<span class="load-chip">{{ u.full_name }} <b>{{ load.get(u.id, 0) }}</b>{% if u.faculty %}<small class="muted">· {{ u.faculty[:18] }}</small>{% endif %}
+      {%- if u.id not in qual %} <span class="qual-warn" title="ไม่อยู่ในทะเบียนผู้ตรวจ">· ไม่อยู่ในทะเบียน</span>
+      {%- elif 'Peer' not in qual[u.id] %} <span class="qual-warn">⚠ ยังไม่ผ่าน Peer</span>{% else %} <span class="lv-good" title="ผ่านอบรม Peer">✓</span>{% endif %}</span>{% endfor %}
+    <br><a href="{{ url_for('assessors_page') }}" style="font-size:.85rem">ทะเบียนผู้ตรวจประเมิน →</a>
   </div>
   {% if not proposals %}<div class="empty">ไม่มีห้องที่อนุมัติแล้วและรอจัดทีม</div>{% else %}
   <form method="post">

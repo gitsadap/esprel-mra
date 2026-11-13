@@ -434,3 +434,15 @@ body.present{background:#0f172a}
 .chip-btn:hover{border-color:var(--primary);color:var(--primary)}
 .btn.danger:not(.ghost){background:var(--bad);color:#fff;border-color:var(--bad)}
 .app-row>div:first-child{flex:1 1 260px!important}
+/* ---------- ทะเบียนผู้ตรวจ */
+.as-list{display:grid;gap:8px}
+.as-card{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.as-card.off{opacity:.55}
+.as-card input[type=checkbox]{width:20px;height:20px}
+.as-main{min-width:0}
+.as-name{font-weight:600;color:var(--ink)}
+.as-aff{font-size:.86rem;color:var(--ink-2)}
+.as-contact{font-size:.8rem;color:var(--ink-3);word-break:break-all}
+.as-tags{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:360px}
+@media (max-width:700px){.as-card{grid-template-columns:auto 1fr}.as-tags{grid-column:2;justify-content:flex-start;max-width:none}}
+.qual-warn{color:var(--warn);font-size:.75rem}

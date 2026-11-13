@@ -29,7 +29,7 @@ Web application (Python/Flask) · ฐานข้อมูล **Supabase (Postgr
 ## 1) ตั้งค่า Supabase
 1. สร้าง Project ใหม่ (Region: Singapore)
 2. **SQL Editor** → วางไฟล์ `supabase/migrations/0001_init.sql` แล้ว Run (สร้างตาราง, เปิด RLS ปิดการเข้าถึงผ่าน API, สร้าง bucket `esprel` แบบ private)
-   - ฐานข้อมูลที่สร้างจากเวอร์ชันก่อน: Run `0002_fm001_application.sql`, `0003_lab_accounts_email.sql` และ `0004_application_review.sql` เพิ่ม — หรือปล่อยให้แอปเพิ่มเองเมื่อ `AUTO_MIGRATE=1`
+   - ฐานข้อมูลที่สร้างจากเวอร์ชันก่อน: Run `0002_fm001_application.sql`, `0003_lab_accounts_email.sql`, `0004_application_review.sql` และ `0005_assessor_registry.sql` เพิ่ม — หรือปล่อยให้แอปเพิ่มเองเมื่อ `AUTO_MIGRATE=1`
 3. คัดลอกค่า
    - Project Settings → Database → Connection string → **Transaction pooler (port 6543)** → `DATABASE_URL`
    - Project Settings → API → Project URL → `SUPABASE_URL`, `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (ห้ามเปิดเผย)
@@ -82,6 +82,14 @@ python scripts/seed_demo.py "ไฟล์ Excel แบบประเมิน.x
 - อนุมัติแล้วระบบส่งอีเมลแจ้งห้องปฏิบัติการ · ประวัติการส่งกลับ/ส่งใหม่บันทึกใน audit_log
 - ข้อความกรอบเหลือง (ผู้รับ/กำหนดส่ง/เบอร์ติดต่อ) และรหัสฉบับแบบฟอร์ม แก้ได้ที่เมนู “ตั้งค่า”
 
+## ทะเบียนผู้ตรวจประเมิน (เมนู “ผู้ตรวจ”)
+- นำเข้ารายชื่อผู้อบรมจาก Excel (หัวตาราง: รายชื่อ · สังกัด · อีเมล์ · เบอร์โทรศัพท์ · ESPReL · Peer) — อ่านทุกชีต รวมรายชื่อซ้ำ แยก มน./ภายนอก
+  ปีที่อบรมอ่านจากหัวเรื่อง/ชื่อชีต/ชื่อไฟล์ · นำเข้าซ้ำได้ (ไม่ทับข้อมูลที่แก้ในระบบ) · แจ้งเตือนอีเมลภายนอกของบุคลากร มน./ไม่มีอีเมล
+- ประวัติการอบรม (ESPReL / Peer + ปี) และประวัติการตรวจของแต่ละคน
+- “เปิดสิทธิ์เข้าระบบ”: อีเมล @nu.ac.th → บัญชี NU (LDAP) · อีเมลภายนอก → อีเมล + รหัสผ่านที่ระบบสร้าง (ส่งทางอีเมล) · บทบาทเริ่มต้นผู้ตรวจประเมิน
+- หน้าจัดทีมแสดงว่าใครผ่าน Peer (✓) / ยังไม่ผ่าน / ไม่อยู่ในทะเบียน · คณะในทะเบียนใช้กันผลประโยชน์ทับซ้อน
+- ข้อมูลส่วนบุคคล (อีเมล/โทรศัพท์) เห็นเฉพาะหัวหน้าผู้ตรวจและผู้ดูแลระบบ · ลบออกจากทะเบียนได้
+
 ## รายงาน
 - **PDF**: ปุ่ม “Report (PDF)” เปิดรายงาน A4 → “ดาวน์โหลด PDF / พิมพ์” → เลือก “บันทึกเป็น PDF” (ใช้ได้ทั้ง iPad/มือถือ/คอมพิวเตอร์)
 - **Word (.docx)**: สร้างพร้อมกันเมื่อกด “สร้าง Report” สำหรับแก้ไขต่อ (เก็บใน Supabase Storage)
@@ -100,6 +108,7 @@ app.py          เส้นทางเว็บ/สิทธิ์/ขั้�
 auth_ldap.py    LDAP                           storage.py   Supabase Storage / ไฟล์ในเครื่อง
 planner.py      จัดทีมผู้ตรวจอัตโนมัติ          reports.py   ข้อมูลรายงาน, เรดาร์, Word, Excel
 fm001.py        ใบสมัคร FM-001 (ช่องข้อมูล/ตรวจความครบ)  mailer.py   ส่งอีเมล SMTP
+assessors.py    ทะเบียนผู้ตรวจ: อ่าน Excel รายชื่อผู้อบรม
 scoring.py      คิดคะแนนตาม Excel              importer.py  นำเข้า Excel แบบประเมินเดิม
 api/index.py    entry สำหรับ Vercel             supabase/migrations/  SQL สร้างตาราง
 templates/ static/   หน้าจอ (มือถือ/iPad/คอมพิวเตอร์) และแม่แบบรายงาน PDF

@@ -7,3 +7,7 @@ instance/
 *.db
 *.db-journal
 .DS_Store
+
+# ไฟล์รายชื่อ/ข้อมูลส่วนบุคคล ไม่เก็บใน Git
+รายชื่อ*.xlsx
+*.xlsx

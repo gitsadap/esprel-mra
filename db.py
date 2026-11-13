@@ -187,6 +187,30 @@ CREATE TABLE IF NOT EXISTS audit_log(
   detail TEXT,
   created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS assessors(
+  id {PK},
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  full_name TEXT NOT NULL,
+  name_key TEXT,
+  affiliation TEXT,
+  faculty TEXT,
+  org_type TEXT NOT NULL DEFAULT 'nu',
+  email TEXT,
+  phone TEXT,
+  note TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT,
+  updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS assessor_trainings(
+  id {PK},
+  assessor_id INTEGER NOT NULL REFERENCES assessors(id) ON DELETE CASCADE,
+  course TEXT NOT NULL,
+  year_be INTEGER,
+  note TEXT,
+  created_at TEXT,
+  UNIQUE(assessor_id, course, year_be)
+);
 CREATE TABLE IF NOT EXISTS mail_log(
   id {PK},
   to_addr TEXT NOT NULL,
@@ -204,10 +228,11 @@ CREATE TABLE IF NOT EXISTS settings(
 CREATE INDEX IF NOT EXISTS ix_attach_item ON attachments(audit_id, item_id);
 CREATE INDEX IF NOT EXISTS ix_log_audit ON audit_log(audit_id);
 CREATE INDEX IF NOT EXISTS ix_audits_year ON audits(year_be);
+CREATE INDEX IF NOT EXISTS ix_assessor_user ON assessors(user_id);
 """
 
 TABLES = ["users", "labs", "lab_members", "audits", "applications", "app_files", "audit_team", "assignments", "responses",
-          "capa", "attachments", "element_status", "reports", "audit_log", "mail_log", "settings"]
+          "capa", "attachments", "element_status", "reports", "audit_log", "assessors", "assessor_trainings", "mail_log", "settings"]
 
 
 def schema_sql(pg):
