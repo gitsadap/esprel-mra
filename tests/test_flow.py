@@ -2,9 +2,8 @@
 import io
 import re
 
-from PIL import Image
-
 from conftest import login
+from PIL import Image
 
 PNG = io.BytesIO()
 Image.new("RGB", (40, 30), (200, 80, 60)).save(PNG, "PNG")
@@ -79,11 +78,11 @@ def test_full_workflow(app):
 
     # 6) รอบ 2 ยังเริ่มไม่ได้ก่อนส่ง CAPA
     lead.post(f"/audit/{aid}/start-round2", data={})
-    d = DB(); assert d.execute("SELECT status FROM audits WHERE id=?", (aid,)).fetchone()["status"] == "r1_reported"; d.close()
+    assert _status(aid) == "r1_reported"
 
     # 7) ห้องตอบ CAPA (ต้องครบทุกข้อ)
     lab.post(f"/lab/audit/{aid}/capa/submit")
-    d = DB(); assert d.execute("SELECT status FROM audits WHERE id=?", (aid,)).fetchone()["status"] == "r1_reported"; d.close()
+    assert _status(aid) == "r1_reported"
     for it in (nc_item, obs_item):
         assert lab.post(f"/api/lab/audit/{aid}/capa/{it}", json={"root_cause": "ไม่มีผู้รับผิดชอบ",
                         "action": "ติดตั้งแล้ว", "owner": "นาย ก", "due_date": "2027-02-01"}).json["ok"]
@@ -92,7 +91,7 @@ def test_full_workflow(app):
                  data={"file": (io.BytesIO(PNG), "fix.png", "image/png")}, content_type="multipart/form-data").json
     assert j["ok"]
     lab.post(f"/lab/audit/{aid}/capa/submit")
-    d = DB(); assert d.execute("SELECT status FROM audits WHERE id=?", (aid,)).fetchone()["status"] == "capa_submitted"; d.close()
+    assert _status(aid) == "capa_submitted"
     assert lab.post(f"/api/lab/audit/{aid}/capa/{nc_item}", json={"action": "แก้"}).status_code == 409
 
     # 8) รอบ 2: เฉพาะ NC/OBS
@@ -163,3 +162,12 @@ def test_import_excel(app):
     d.close()
     assert (compute(r1)["total"]["max"], compute(r1)["total"]["got"]) == (501, 484)
     assert (compute(r2)["total"]["max"], compute(r2)["total"]["got"]) == (499, 497)
+
+
+def _status(aid):
+    from db import DB
+    d = DB()
+    try:
+        return d.execute("SELECT status FROM audits WHERE id=?", (aid,)).fetchone()["status"]
+    finally:
+        d.close()

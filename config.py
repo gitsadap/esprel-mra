@@ -9,7 +9,9 @@ def _load_dotenv():
     p = os.path.join(BASE, ".env")
     if not os.path.exists(p):
         return
-    for line in open(p, encoding="utf-8"):
+    with open(p, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    for line in lines:
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue

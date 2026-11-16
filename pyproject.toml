@@ -1,0 +1,23 @@
+[tool.ruff]
+line-length = 130
+target-version = "py39"
+extend-exclude = [".venv", "instance"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP", "SIM", "C4"]
+ignore = [
+  "E501",    # ข้อความภาษาไทยยาว
+  "SIM105",  # try/except/pass อ่านง่ายกว่า contextlib.suppress ในโค้ดนี้
+  "SIM108",
+  "UP007", "UP045",  # รองรับ Python 3.9
+  "B008",
+  "C408",    # dict(key=...) อ่านง่ายในโค้ดนี้
+]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+known-first-party = ["app", "core", "views", "db", "config", "scoring", "storage", "mailer", "auth_ldap",
+                     "assessors", "fm001", "planner", "reports", "importer", "excel_parser"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

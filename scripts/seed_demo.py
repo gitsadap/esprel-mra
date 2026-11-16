@@ -49,6 +49,7 @@ for it in follow:
     aud.post(f"/api/audit/{aid}/round/2/item/{it}", json={"followup": st, "confirm": True,
              "fnote": "ตรวจพบหลักฐานการแก้ไขครบถ้วน" if st == "resolved" else "มี SOP แล้ว แต่ยังไม่มีมาตรการตรวจผลการบำบัด"})
 from scoring import ITEMS  # noqa: E402
+
 for it in follow:
     if it != "4-41":
         aud.post(f"/api/audit/{aid}/round/2/item/{it}", json={"score": str(ITEMS[it]["max"])})
@@ -59,6 +60,7 @@ for e in range(1, 8):
 lead.post(f"/audit/{aid}/round/2/report", data={"report_date": "2026-07-31"})
 # ใบสมัครตัวอย่างปีถัดไป
 import io  # noqa: E402
+
 import fm001  # noqa: E402
 
 

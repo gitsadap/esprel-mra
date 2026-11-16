@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 
 from docx import Document
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -133,8 +133,8 @@ def radar_svg(values_list, size=320):
              f'aria-label="กราฟร้อยละคะแนนตามองค์ประกอบ">']
     for lv in (25, 50, 75, 100):
         pts = _radar_points([lv] * 7, cx, cy, r)
-        parts.append('<polygon points="%s" fill="none" stroke="#d9dde6" stroke-width="1"/>' %
-                     " ".join(f"{x:.1f},{y:.1f}" for x, y in pts))
+        poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+        parts.append(f'<polygon points="{poly}" fill="none" stroke="#d9dde6" stroke-width="1"/>')
         parts.append(f'<text x="{cx + 3:.1f}" y="{cy - r * lv / 100 + 10:.1f}" font-size="8.5" fill="#8a93a6">{lv}</text>')
     for i, (x, y) in enumerate(_radar_points([100] * 7, cx, cy, r)):
         parts.append(f'<line x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}" stroke="#e6e9f0"/>')
@@ -144,8 +144,8 @@ def radar_svg(values_list, size=320):
     for k, vals in enumerate(values_list):
         pts = _radar_points(vals, cx, cy, r)
         c = R_COLORS[k]
-        parts.append('<polygon points="%s" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="2"/>' %
-                     (" ".join(f"{x:.1f},{y:.1f}" for x, y in pts), c, c))
+        poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+        parts.append(f'<polygon points="{poly}" fill="{c}" fill-opacity="0.12" stroke="{c}" stroke-width="2"/>')
         for x, y in pts:
             parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.6" fill="{c}"/>')
     parts.append("</svg>")
@@ -619,7 +619,7 @@ def build_xlsx(a):
     for col in "BCDEFG":
         ws.column_dimensions[col].width = 14
 
-    for rnd_label, resp_main in (("ผลการตรวจรายข้อ", None),):
+    for rnd_label in ("ผลการตรวจรายข้อ",):
         ws2 = wb.create_sheet(rnd_label)
         head = ["องค์ประกอบ", "หัวข้อ", "ข้อ", "รายการ", "คะแนนเต็ม", "ครั้งที่ 1 คะแนน", "ครั้งที่ 1 ประเภท",
                 "ครั้งที่ 1 ข้อค้นพบ", "ครั้งที่ 2 คะแนน", "ครั้งที่ 2 ประเภท", "ครั้งที่ 2 ข้อค้นพบ",

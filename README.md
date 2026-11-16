@@ -102,15 +102,23 @@ python scripts/seed_demo.py "ไฟล์ Excel แบบประเมิน.x
 - ป้องกัน CSRF ทุกฟอร์ม/คำขอ, cookie แบบ HttpOnly/Secure
 - ควรกำหนดนโยบายระยะเวลาเก็บรูปและหลีกเลี่ยงการถ่ายใบหน้าบุคคล (PDPA)
 
-## โครงสร้าง
+## โครงสร้างโค้ด
 ```
-app.py          เส้นทางเว็บ/สิทธิ์/ขั้นตอน      db.py        ฐานข้อมูล (Postgres/SQLite) + schema
-auth_ldap.py    LDAP                           storage.py   Supabase Storage / ไฟล์ในเครื่อง
-planner.py      จัดทีมผู้ตรวจอัตโนมัติ          reports.py   ข้อมูลรายงาน, เรดาร์, Word, Excel
-fm001.py        ใบสมัคร FM-001 (ช่องข้อมูล/ตรวจความครบ)  mailer.py   ส่งอีเมล SMTP
-assessors.py    ทะเบียนผู้ตรวจ: อ่าน Excel รายชื่อผู้อบรม
-scoring.py      คิดคะแนนตาม Excel              importer.py  นำเข้า Excel แบบประเมินเดิม
-api/index.py    entry สำหรับ Vercel             supabase/migrations/  SQL สร้างตาราง
-templates/ static/   หน้าจอ (มือถือ/iPad/คอมพิวเตอร์) และแม่แบบรายงาน PDF
-tests/          pytest ครบขั้นตอน + LDAP mock   .github/workflows/ci.yml  CI
+app.py            สร้างแอป Flask + ผูกหน้าเว็บทุกส่วน (create_app)
+core.py           ค่าคงที่ สิทธิ์ผู้ใช้ ข้อมูลการตรวจ ไฟล์อัปโหลด บัญชี/อีเมล (ใช้ร่วมกันทุกหน้า)
+views/            หน้าเว็บแยกตามส่วนงาน — แต่ละไฟล์มี register(app)
+  base.py         ตรวจผู้ใช้/CSRF/บังคับเปลี่ยนรหัส, ตัวแปรกลางของ template
+  auth.py         เข้าสู่ระบบ, ลืมรหัสผ่าน, บัญชีของฉัน
+  audits.py       ภาพรวมผู้ตรวจ, สร้าง/แก้ไขการตรวจและทีม, สรุปรายห้อง
+  assess.py       ให้คะแนน (API), รูปหลักฐาน, รายงาน PDF/Word, รอบ 2, ประชุมปิด
+  lab.py          พอร์ทัลห้องปฏิบัติการ, ใบสมัคร FM-001, CAPA
+  planning.py     อนุมัติใบสมัคร/ส่งกลับ, จัดทีม, ทะเบียนผู้ตรวจ
+  admin.py        นำเข้า/ส่งออก Excel, ผู้ใช้, ตั้งค่า, healthz, หน้าข้อผิดพลาด
+db.py             ฐานข้อมูล (Postgres/SQLite) + schema    config.py   ค่าจาก .env / Vercel
+scoring.py        คิดคะแนนตาม Excel                       reports.py  รายงาน, เรดาร์, Word, Excel
+fm001.py          ใบสมัคร FM-001                          assessors.py ทะเบียนผู้ตรวจ (อ่าน Excel)
+planner.py        จัดทีมอัตโนมัติ    mailer.py ส่งอีเมล    storage.py Supabase Storage/ไฟล์ในเครื่อง
+auth_ldap.py      LDAP               importer.py / excel_parser.py  นำเข้าแบบประเมิน Excel เดิม
+supabase/migrations/  SQL สร้างตาราง  ·  tests/  pytest (SQLite + Postgres)  ·  api/index.py  entry Vercel
 ```
+ตรวจคุณภาพโค้ด: `ruff check .` (กติกาใน pyproject.toml) · `pytest -q`

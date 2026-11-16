@@ -12,9 +12,10 @@ def _mock_server():
 
 
 def test_ldap_bind(monkeypatch):
-    import config
-    import auth_ldap
     from ldap3 import Connection as RealConn
+
+    import auth_ldap
+    import config
     srv, mock = _mock_server()
     monkeypatch.setattr(config, "LDAP_URL", "ldap://mock")
     monkeypatch.setattr(config, "LDAP_BASE_DN", "dc=nu,dc=ac,dc=th")

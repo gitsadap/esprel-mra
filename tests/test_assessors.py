@@ -3,10 +3,10 @@ import io
 import re
 
 import openpyxl
+from conftest import login
 
 import assessors
 import mailer
-from conftest import login
 
 
 def _xlsx():

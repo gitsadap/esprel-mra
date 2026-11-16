@@ -19,7 +19,7 @@ def split_elements(team_ids):
     if not team_ids:
         return {}
     sizes = {e["no"]: sum(1 for n in e["nodes"] if n["kind"] == "item") for e in CHECKLIST}
-    load = {u: 0 for u in team_ids}
+    load = dict.fromkeys(team_ids, 0)
     out = {}
     for el in sorted(sizes, key=lambda e: -sizes[e]):
         u = min(team_ids, key=lambda x: (load[x], team_ids.index(x)))
@@ -40,7 +40,7 @@ def propose(labs, assessors, team_size=3, existing_load=None):
     if not leads:
         leads = list(assessors)
     proposals = []
-    for lab in sorted(labs, key=lambda l: (_norm(l.get("faculty")), l["name"])):
+    for lab in sorted(labs, key=lambda x: (_norm(x.get("faculty")), x["name"])):
         warnings = []
         ok_leads = [a for a in leads if not conflict(a, lab)]
         if not ok_leads:

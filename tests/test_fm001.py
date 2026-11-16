@@ -2,8 +2,9 @@
 import io
 import re
 
-import fm001
 from conftest import login
+
+import fm001
 
 FAC = "คณะวิทยาศาสตร์"
 

@@ -94,7 +94,7 @@ def parse_workbook(fileobj, filename="", default_year=None):
         hdr = rows[hdr_i]
         title = " ".join(" ".join(c for c in r if c) for r in rows[:hdr_i]) + " " + ws.title
 
-        def col(*names):
+        def col(*names, hdr=hdr):
             for i, h in enumerate(hdr):
                 hl = h.lower()
                 if any(n.lower() in hl for n in names):
@@ -107,7 +107,8 @@ def parse_workbook(fileobj, filename="", default_year=None):
         sheet_courses = [] if c_courses else _course_in(title)
         year = _year(title) or file_year or default_year
         for r in rows[hdr_i + 1:]:
-            get = lambda i: r[i] if i is not None and i < len(r) else ""  # noqa: E731
+            def get(i, r=r):
+                return r[i] if i is not None and i < len(r) else ""
             name = get(c_name)
             if not name or name in ("รายชื่อ",):
                 continue
