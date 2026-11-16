@@ -3,7 +3,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": "{templates,static,data}/**"
+      "includeFiles": "{templates,static,data,views}/**"
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
