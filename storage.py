@@ -9,7 +9,10 @@ LOCAL_DIR = os.path.join(config.INSTANCE, "files")
 
 
 def _headers(extra=None):
-    h = {"Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}", "apikey": config.SUPABASE_SERVICE_KEY}
+    key = config.SUPABASE_SERVICE_KEY
+    # คีย์แบบใหม่ (sb_secret_...) ไม่ใช่ JWT → ส่งเฉพาะ apikey (gateway แปลงเป็นสิทธิ์ service_role ให้)
+    # คีย์แบบเดิม (service_role JWT) → ส่งทั้ง apikey และ Authorization
+    h = {"apikey": key} if key.startswith("sb_") else {"Authorization": f"Bearer {key}", "apikey": key}
     if extra:
         h.update(extra)
     return h
