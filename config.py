@@ -32,6 +32,15 @@ INSTANCE = env("INSTANCE_DIR", "/tmp/esprel" if ON_VERCEL else os.path.join(BASE
 # ---- ฐานข้อมูล: Supabase Postgres (production) หรือ SQLite (พัฒนาในเครื่อง)
 # Supabase → Project Settings → Database → Connection string → "Transaction pooler" (port 6543)
 DATABASE_URL = env("DATABASE_URL")            # postgresql://postgres.xxxx:password@aws-0-xx.pooler.supabase.com:6543/postgres
+# ใส่รหัสผ่านฐานข้อมูลแยกได้ที่ SUPABASE_DB_PASSWORD แล้วเว้น [YOUR-PASSWORD] ไว้ใน DATABASE_URL (ระบบเข้ารหัสอักขระพิเศษให้)
+if DATABASE_URL and "[YOUR-PASSWORD]" in DATABASE_URL:
+    from urllib.parse import quote as _quote
+    _pw = env("SUPABASE_DB_PASSWORD")
+    if _pw:
+        DATABASE_URL = DATABASE_URL.replace("[YOUR-PASSWORD]", _quote(_pw, safe=""))
+    else:
+        print("\n  ⚠ ยังไม่ได้ใส่ SUPABASE_DB_PASSWORD ในไฟล์ .env — ใช้ฐานข้อมูลทดสอบในเครื่อง (SQLite) แทน Supabase\n")
+        DATABASE_URL = None
 SQLITE_PATH = env("SQLITE_PATH", os.path.join(INSTANCE, "esprel.db"))
 AUTO_MIGRATE = env("AUTO_MIGRATE", "1" if not DATABASE_URL else "0") == "1"
 
