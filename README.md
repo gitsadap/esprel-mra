@@ -36,7 +36,7 @@ Web application (Python/Flask) · ฐานข้อมูล **Supabase (Postgr
 
 ## 2) Git + Vercel (CI/CD)
 1. สร้าง repository บน GitHub แล้ว push โค้ดนี้ (`git remote add origin … && git push -u origin main`)
-2. Vercel → **Add New Project** → Import repo นี้ (Framework: Other) — `vercel.json` ตั้งค่าไว้แล้ว
+2. Vercel → **Add New Project** → Import repo นี้ → เลือกแถว **app (Flask)** → *Import single project* (ไม่ต้อง deploy `ldap_gateway`) — Vercel ใช้ `app.py` เป็น entry, `vercel.json` กำหนด region โตเกียว (hnd1) ใกล้ Supabase
 3. Vercel → Settings → **Environment Variables** ใส่ค่าตาม `.env.example`
    (`SECRET_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `LDAP_*`, `SMTP_*`, `MAIL_FROM`, `APP_BASE_URL`, `ADMIN_INITIAL_PASSWORD`)
 4. ทุกครั้งที่ push → GitHub Actions รันทดสอบ (SQLite + Postgres) และ Vercel สร้าง Preview; merge เข้า `main` → Production
@@ -124,6 +124,6 @@ scoring.py        คิดคะแนนตาม Excel                       
 fm001.py          ใบสมัคร FM-001                          assessors.py ทะเบียนผู้ตรวจ (อ่าน Excel)
 planner.py        จัดทีมอัตโนมัติ    mailer.py ส่งอีเมล    storage.py Supabase Storage/ไฟล์ในเครื่อง
 auth_ldap.py      LDAP               importer.py / excel_parser.py  นำเข้าแบบประเมิน Excel เดิม
-supabase/migrations/  SQL สร้างตาราง  ·  tests/  pytest (SQLite + Postgres)  ·  api/index.py  entry Vercel
+supabase/migrations/  SQL สร้างตาราง  ·  tests/  pytest (SQLite + Postgres)  ·  Vercel ใช้ app.py (Flask preset) เป็น entry
 ```
 ตรวจคุณภาพโค้ด: `ruff check .` (กติกาใน pyproject.toml) · `pytest -q`
