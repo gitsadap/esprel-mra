@@ -22,6 +22,7 @@ from core import (
     mail_credentials,
     roles,
     save_upload,
+    sync_nu_accounts,
     to_nu_account,
 )
 from db import get_db, hash_pw, now
@@ -64,6 +65,11 @@ def register(app):
             flash("นำเข้าข้อมูลจาก Excel เรียบร้อย — กรุณาตรวจสอบประเภทข้อค้นพบ (NC/OBS/ข้อเสนอแนะ) อีกครั้ง", "ok")
             return redirect(url_for("audit_view", audit_id=aid))
         return render_template("import.html")
+
+    def _flash_nu_sync(db):
+        done = sync_nu_accounts(db)
+        if done:
+            flash("เปลี่ยนเป็นบัญชี NU (LDAP) แล้ว: " + ", ".join(done) + " — เข้าสู่ระบบด้วยชื่อผู้ใช้นี้และรหัสผ่าน NU", "ok")
 
     # ---------- users & settings
     @app.route("/users", methods=["GET", "POST"])
@@ -116,23 +122,19 @@ def register(app):
                                (request.form.get("full_name", u["full_name"]), request.form.get("faculty") or None,
                                 request.form.get("email") or None, role, 1 if request.form.get("active") else 0, uid))
                     email = (request.form.get("email") or "").strip().lower()
-                    nu_un = assessors_mod.ldap_username(email)
+                    if email:   # อีเมลบัญชีกับทะเบียนผู้ตรวจต้องตรงกัน
+                        db.execute("UPDATE assessors SET email=?, updated_at=? WHERE user_id=?", (email, now(), uid))
+                    err = to_nu_account(db, db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone(),
+                                        assessors_mod.ldap_username(email), email) if role in ("assessor", "lead") else None
+                    if err:
+                        flash(err, "error")
                     if request.form.get("password"):
                         db.execute("UPDATE users SET password_hash=?, auth_source='local' WHERE id=?",
                                    (hash_pw(request.form["password"]), uid))
-                    elif nu_un and role in ("assessor", "lead"):
-                        # อีเมลเป็น @nu.ac.th → บัญชีอีเมล+รหัสผ่านเดิม เปลี่ยนเป็นบัญชี NU (LDAP) + ปรับทะเบียนผู้ตรวจให้ตรงกัน
-                        u2 = db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
-                        err = to_nu_account(db, u2, nu_un, email)
-                        if err:
-                            flash(err, "error")
-                        elif "@" in u2["username"]:
-                            flash(f"เปลี่ยนเป็นบัญชี NU (LDAP) แล้ว — เข้าสู่ระบบด้วยชื่อผู้ใช้ “{nu_un}” และรหัสผ่าน NU", "ok")
-                        db.execute("UPDATE assessors SET email=?, org_type='nu', updated_at=? WHERE user_id=?",
-                                   (email, now(), uid))
                     db.commit()
                     flash("บันทึกข้อมูลผู้ใช้แล้ว", "ok")
             return redirect(url_for("users", role=request.args.get("role")))
+        _flash_nu_sync(db)
         role = request.args.get("role")
         q = "SELECT * FROM users"
         args = ()

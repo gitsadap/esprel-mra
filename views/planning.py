@@ -5,7 +5,7 @@ from flask import abort, flash, g, redirect, render_template, request, url_for
 
 import assessors as assessors_mod
 import db as dbm
-from core import EMAIL_RE, gen_password, mail_credentials, roles, to_nu_account
+from core import EMAIL_RE, gen_password, mail_credentials, roles, sync_nu_accounts
 from db import get_db, hash_pw, log, now
 from planner import propose
 from views.audits import save_team, staff_users
@@ -89,6 +89,12 @@ def _ensure_account(a):
     return msg, level
 
 
+def _flash_nu_sync(db):
+    done = sync_nu_accounts(db)
+    if done:
+        flash("เปลี่ยนเป็นบัญชี NU (LDAP) แล้ว: " + ", ".join(done) + " — เข้าสู่ระบบด้วยชื่อผู้ใช้นี้และรหัสผ่าน NU", "ok")
+
+
 def register(app):
     # ---------- PLANNING: ใบสมัคร + จัดทีมผู้ตรวจ
     @app.route("/planning", methods=["GET", "POST"])
@@ -135,6 +141,7 @@ def register(app):
                 db.commit()
                 flash(f"สร้างการตรวจประเมิน {n} ห้อง พร้อมทีมผู้ตรวจแล้ว", "ok")
             return redirect(url_for("planning", year=year))
+        _flash_nu_sync(db)
         apps = db.execute(
             """SELECT ap.*, l.name lab_name, l.faculty, l.affiliation, l.espre_no, l.head_name, l.phone, l.email,
                       u.full_name applicant,
@@ -227,6 +234,7 @@ def register(app):
                         db.commit()
                         flash(msg, level)
             return redirect(url_for("assessors_page", **request.args.to_dict()))
+        _flash_nu_sync(db)
         rows = _assessor_rows()
         q = (request.args.get("q") or "").strip().lower()
         flt = request.args.get("f", "")
@@ -295,13 +303,6 @@ def register(app):
                                (name, vals[3], email, a["user_id"]))
                     if not vals[8]:
                         db.execute("UPDATE users SET active=0 WHERE id=? AND role='assessor'", (a["user_id"],))
-                    if nu_un:   # อีเมลเป็น @nu.ac.th แล้ว → บัญชีอีเมล+รหัสผ่านเดิม เปลี่ยนเป็นบัญชี NU (LDAP)
-                        u = db.execute("SELECT * FROM users WHERE id=?", (a["user_id"],)).fetchone()
-                        err = to_nu_account(db, u, nu_un, email)
-                        if err:
-                            flash(err, "error")
-                        elif u and u["auth_source"] != "ldap" and "@" in u["username"]:
-                            flash(f"เปลี่ยนเป็นบัญชี NU (LDAP) แล้ว — เข้าสู่ระบบด้วยชื่อผู้ใช้ “{nu_un}” และรหัสผ่าน NU", "ok")
             else:
                 aid = db.insert("""INSERT INTO assessors(full_name,name_key,affiliation,faculty,org_type,email,phone,note,active,
                                    updated_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", vals + (now(),))
@@ -311,7 +312,9 @@ def register(app):
                 _add_training(aid, f.get("new_course"), f.get("new_year", type=int))
             db.commit()
             flash("บันทึกข้อมูลผู้ตรวจแล้ว", "ok")
+            _flash_nu_sync(db)
             return redirect(url_for("assessor_edit", aid=aid))
+        _flash_nu_sync(db)
         row = _assessor_rows("WHERE a.id=?", (aid,))[0] if a else None
         audits = []
         if a and a["user_id"]:

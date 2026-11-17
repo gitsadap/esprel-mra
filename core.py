@@ -312,3 +312,23 @@ def to_nu_account(db, user, nu_username, email=None):
     db.execute("""UPDATE users SET username=?, email=COALESCE(?, email), auth_source='ldap', password_hash=NULL,
                   must_change_pw=0 WHERE id=?""", (nu_username, email, user["id"]))
     return None
+
+
+def sync_nu_accounts(db):
+    """ทำให้ทุกหน้าตรงกัน: บัญชีหัวหน้าผู้ตรวจ/ผู้ตรวจที่ชื่อผู้ใช้ยังเป็นอีเมลภายนอก แต่ช่องอีเมลเป็น @nu.ac.th แล้ว
+    → เปลี่ยนเป็นบัญชี NU (LDAP) + อีเมลและประเภทในทะเบียนผู้ตรวจตรงกัน · คืนรายชื่อบัญชีที่เปลี่ยน"""
+    done = []
+    rows = db.execute("""SELECT * FROM users WHERE role IN ('assessor','lead') AND username LIKE ?
+                         AND lower(email) LIKE ?""", ("%@%", "%@nu.ac.th")).fetchall()
+    for u in rows:
+        email = (u["email"] or "").strip().lower()
+        un = email.split("@")[0]
+        if not re.fullmatch(r"[a-z0-9._\-]{1,64}", un) or to_nu_account(db, u, un, email):
+            continue
+        db.execute("UPDATE assessors SET email=?, org_type='nu' WHERE user_id=?", (email, u["id"]))
+        done.append(un)
+    n = db.execute("UPDATE assessors SET org_type='nu' WHERE lower(email) LIKE ? AND org_type<>'nu'",
+                   ("%@nu.ac.th",)).rowcount
+    if done or n:
+        db.commit()
+    return done

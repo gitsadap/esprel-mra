@@ -141,3 +141,24 @@ def test_import_page_accounts_and_planner(app):
     d = DB()
     assert not d.execute("SELECT 1 x FROM assessors WHERE id=?", (aid_b,)).fetchone()
     d.close()
+
+
+def test_existing_nu_email_accounts_fixed_on_any_page(app):
+    """ข้อมูลเดิม: หัวหน้าผู้ตรวจที่ชื่อผู้ใช้ยังเป็น Gmail แต่อีเมลแก้เป็น @nu.ac.th แล้ว → เปิดหน้าใดก็ถูกปรับเป็นบัญชี NU"""
+    from db import DB
+    d = DB()
+    uid = d.insert("""INSERT INTO users(username,password_hash,full_name,email,role,auth_source,must_change_pw,created_at)
+                      VALUES('lead.old@gmail.com','x','ดร.หัวหน้า เดิม','leadold@nu.ac.th','lead','local',1,'x')""")
+    d.execute("""INSERT INTO assessors(full_name,name_key,org_type,email,user_id,created_at)
+                 VALUES('ดร.หัวหน้า เดิม','หัวหน้าเดิม','external','lead.old@gmail.com',?,'x')""", (uid,))
+    d.commit()
+    d.close()
+    admin = login(app.test_client(), "admin", "admin1234")
+    page = admin.get("/users?role=lead").get_data(as_text=True)
+    assert "leadold" in page and "lead.old@gmail.com" not in page
+    d = DB()
+    u = d.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    a = d.execute("SELECT email, org_type FROM assessors WHERE user_id=?", (uid,)).fetchone()
+    d.close()
+    assert u["username"] == "leadold" and u["auth_source"] == "ldap" and u["role"] == "lead"
+    assert a["email"] == "leadold@nu.ac.th" and a["org_type"] == "nu"
