@@ -54,7 +54,8 @@ STORAGE_BUCKET = env("STORAGE_BUCKET", "esprel")
 # ---- LDAP มหาวิทยาลัย (ผู้ตรวจ/ทีมงาน) — ยืนยันตัวตนที่ LDAP ก่อน แล้วจึงตรวจรายชื่อผู้ใช้ในฐานข้อมูล (Supabase)
 # แบบ A: แอปเรียก "เซิร์ฟเวอร์ภายใน มน." (LDAP gateway, ดู ldap_gateway/) ผ่าน HTTPS — ใช้เมื่อแอปอยู่บน Vercel/คลาวด์
 LDAP_GATEWAY_URL = env("LDAP_GATEWAY_URL")    # https://<เซิร์ฟเวอร์ภายใน>/api/esprel/ldap-verify
-LDAP_GATEWAY_KEY = env("LDAP_GATEWAY_KEY")    # คีย์ลับร่วมกับ gateway (ESPREL_GATEWAY_KEY ฝั่งเซิร์ฟเวอร์)
+LDAP_GATEWAY_KEY = env("LDAP_GATEWAY_KEY")    # คีย์ลับร่วม ≥32 ตัว (= ESPREL_GATEWAY_KEY ฝั่ง NRED) ใช้ลงลายเซ็น ไม่ถูกส่งไปกับคำขอ
+LDAP_GATEWAY_ALLOW_HTTP = env("LDAP_GATEWAY_ALLOW_HTTP", "0") == "1"   # ทดสอบเท่านั้น
 # แบบ B: แอปติดตั้งในเครือข่าย มน. แล้ว bind LDAP เอง (แบบเดียวกับระบบ NRED)
 LDAP_URL = env("LDAP_URL")                    # ldap://10.10.10.71  หรือ ldaps://...:636
 LDAP_UPN_SUFFIX = env("LDAP_UPN_SUFFIX")      # @nu.local  (Active Directory: bind เป็น user@domain)

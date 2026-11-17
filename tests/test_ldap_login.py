@@ -11,31 +11,40 @@ import config
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-class FakeResp:
-    def __init__(self, status, data=None):
-        self.status_code, self._data = status, data
+KEY = "k" * 40
 
-    def json(self):
-        if self._data is None:
-            raise ValueError("no json")
-        return self._data
+
+def _load_gateway(monkeypatch, key=KEY):
+    pytest.importorskip("fastapi")
+    monkeypatch.setenv("ESPREL_GATEWAY_KEY", key)
+    monkeypatch.setenv("ESPREL_ENV_FILE", "/nonexistent")
+    if os.path.join(ROOT, "ldap_gateway") not in sys.path:
+        sys.path.insert(0, os.path.join(ROOT, "ldap_gateway"))
+    mod = importlib.reload(importlib.import_module("esprel_ldap_gateway"))
+    seen = []
+
+    def fake_bind(user, pw):
+        seen.append(user)
+        if pw == "nu-pass":
+            return True, {"full_name": "LDAP Name", "email": f"{user}@nu.ac.th", "department": "คณะทดสอบ"}
+        return False, {}
+    monkeypatch.setattr(mod, "ldap_bind", fake_bind)
+    return mod, seen
 
 
 @pytest.fixture
 def gateway(monkeypatch):
-    """จำลองเซิร์ฟเวอร์ภายใน: รหัสผ่าน 'nu-pass' ถูกเสมอ"""
+    """แอป ESPReL ↔ gateway ตัวจริง (FastAPI, LDAP จำลอง: รหัส 'nu-pass' ถูก) ผ่าน HTTPS จำลอง"""
+    from fastapi.testclient import TestClient
+    mod, seen = _load_gateway(monkeypatch)
+    client = TestClient(mod.app, base_url="https://nred.example")
     calls = []
 
-    def fake_post(url, json=None, headers=None, timeout=None):
-        calls.append({"url": url, "json": json, "headers": headers})
-        if headers.get("X-ESPReL-Key") != "k3y":
-            return FakeResp(403, {"detail": "forbidden"})
-        if json["password"] == "nu-pass":
-            return FakeResp(200, {"ok": True, "username": json["username"], "full_name": "LDAP Name",
-                                  "email": f"{json['username']}@nu.ac.th", "department": "คณะทดสอบ"})
-        return FakeResp(401, {"detail": "invalid"})
-    monkeypatch.setattr(config, "LDAP_GATEWAY_URL", "https://internal.example/api/esprel/ldap-verify")
-    monkeypatch.setattr(config, "LDAP_GATEWAY_KEY", "k3y")
+    def fake_post(url, data=None, headers=None, timeout=None, allow_redirects=False):
+        calls.append({"url": url, "body": data, "headers": headers})
+        return client.post("/api/esprel/ldap-verify", content=data, headers=headers)
+    monkeypatch.setattr(config, "LDAP_GATEWAY_URL", "https://nred.example/api/esprel/ldap-verify")
+    monkeypatch.setattr(config, "LDAP_GATEWAY_KEY", KEY)
     monkeypatch.setattr(auth_ldap.requests, "post", fake_post)
     return calls
 
@@ -53,17 +62,41 @@ def test_normalize_username():
     assert n("someone@gmail.com") is None and n("") is None and n("a b") is None
 
 
-def test_gateway_client(gateway):
+def test_gateway_client(gateway, monkeypatch):
     assert auth_ldap.mode() == "gateway"
     info = auth_ldap.authenticate("Tester1@nu.ac.th", "nu-pass")
     assert info == {"username": "tester1", "full_name": "LDAP Name", "email": "tester1@nu.ac.th", "faculty": "คณะทดสอบ"}
-    assert gateway[-1]["json"] == {"username": "tester1", "password": "nu-pass"}
+    sent = gateway[-1]
+    assert KEY not in str(sent["headers"])                       # คีย์ไม่ถูกส่งไปกับคำขอ
+    assert set(sent["headers"]) >= {"X-ESPReL-Timestamp", "X-ESPReL-Nonce", "X-ESPReL-Signature"}
     assert auth_ldap.authenticate("tester1", "wrong") is None
     n = len(gateway)
     assert auth_ldap.authenticate("tester1", "") is None and len(gateway) == n   # รหัสว่างไม่ถูกส่งออกไปเลย
-    config.LDAP_GATEWAY_KEY = "bad"
+    # คีย์ไม่ตรงกัน → ปฏิเสธ (ไม่ใช่ "รหัสผิด")
+    monkeypatch.setattr(config, "LDAP_GATEWAY_KEY", "x" * 40)
     with pytest.raises(auth_ldap.LDAPError):
         auth_ldap.authenticate("tester1", "nu-pass")
+    # คีย์สั้น / URL ไม่ใช่ https → ไม่ส่งเลย
+    monkeypatch.setattr(config, "LDAP_GATEWAY_KEY", "short")
+    with pytest.raises(auth_ldap.LDAPError):
+        auth_ldap.authenticate("tester1", "nu-pass")
+    monkeypatch.setattr(config, "LDAP_GATEWAY_KEY", KEY)
+    monkeypatch.setattr(config, "LDAP_GATEWAY_URL", "http://nred.example/api/esprel/ldap-verify")
+    with pytest.raises(auth_ldap.LDAPError):
+        auth_ldap.authenticate("tester1", "nu-pass")
+
+
+def test_fake_gateway_response_rejected(monkeypatch):
+    """เซิร์ฟเวอร์ปลอม/คำตอบปลอมที่ตอบ ok:true แต่ไม่มีลายเซ็นที่ถูกต้อง → ไม่ยอมให้เข้า"""
+    class R:
+        status_code = 200
+        content = b'{"ok":true,"username":"tester1"}'
+        headers = {"X-ESPReL-Signature": "00" * 32}
+    monkeypatch.setattr(config, "LDAP_GATEWAY_URL", "https://evil.example/x")
+    monkeypatch.setattr(config, "LDAP_GATEWAY_KEY", KEY)
+    monkeypatch.setattr(auth_ldap.requests, "post", lambda *a, **k: R())
+    with pytest.raises(auth_ldap.LDAPError):
+        auth_ldap.authenticate("tester1", "anything")
 
 
 def test_gateway_down(monkeypatch, app):
@@ -72,6 +105,7 @@ def test_gateway_down(monkeypatch, app):
     def boom(*a, **k):
         raise requests.ConnectionError("down")
     monkeypatch.setattr(config, "LDAP_GATEWAY_URL", "https://internal.example/x")
+    monkeypatch.setattr(config, "LDAP_GATEWAY_KEY", KEY)
     monkeypatch.setattr(auth_ldap.requests, "post", boom)
     _, r = _login(app, "ldapdown", "nu-pass")
     assert r.status_code == 200 and "ติดต่อเซิร์ฟเวอร์ยืนยันตัวตน" in r.get_data(as_text=True)
@@ -139,34 +173,88 @@ def test_login_rate_limit(app, gateway, monkeypatch):
     assert r.status_code == 429
 
 
-# ----------------------------------------------------------------- ฝั่งเซิร์ฟเวอร์ภายใน (gateway)
-@pytest.fixture
-def gw(monkeypatch):
-    pytest.importorskip("fastapi")
+# ----------------------------------------------------------------- ฝั่ง NRED (gateway)
+def _signed(mod, body: dict, key=KEY, ts=None, nonce=None):
+    import secrets as _s
+    import time as _t
+    raw = __import__("json").dumps(body).encode()
+    ts = str(ts if ts is not None else int(_t.time()))
+    nonce = nonce or _s.token_urlsafe(24)
+    return raw, {"X-ESPReL-Timestamp": ts, "X-ESPReL-Nonce": nonce,
+                 "X-ESPReL-Signature": mod.sign_request(key.encode(), ts, nonce, raw), "Content-Type": "application/json"}
+
+
+def test_gateway_server_security(monkeypatch):
     from fastapi.testclient import TestClient
-    monkeypatch.setenv("ESPREL_GATEWAY_KEY", "secret-key")
-    sys.path.insert(0, os.path.join(ROOT, "ldap_gateway"))
-    mod = importlib.reload(importlib.import_module("esprel_ldap_gateway"))
-    seen = []
-
-    def fake_bind(user, pw):
-        seen.append(user)
-        return (pw == "nu-pass"), ({"full_name": "จาก AD", "email": f"{user}@nu.ac.th"} if pw == "nu-pass" else {})
-    monkeypatch.setattr(mod, "ldap_bind", fake_bind)
-    return TestClient(mod.app), seen
-
-
-def test_gateway_server(gw):
-    client, seen = gw
+    mod, seen = _load_gateway(monkeypatch)
+    https = TestClient(mod.app, base_url="https://nred.example")
     url = "/api/esprel/ldap-verify"
-    assert client.post(url, json={"username": "a", "password": "nu-pass"}).status_code == 403           # ไม่มีคีย์
-    h = {"X-ESPReL-Key": "secret-key"}
-    r = client.post(url, json={"username": "Gitsadap", "password": "nu-pass"}, headers=h)
-    assert r.status_code == 200 and r.json()["ok"] and r.json()["username"] == "gitsadap" and seen == ["gitsadap"]
-    assert client.post(url, json={"username": "gitsadap", "password": ""}, headers=h).status_code == 401   # รหัสว่าง
-    assert len(seen) == 1                                                                                  # ไม่ bind เลย
-    assert client.post(url, json={"username": "x)(cn=*", "password": "p"}, headers=h).status_code == 401  # ชื่อแปลก
+    good = {"username": "gitsadap", "password": "nu-pass"}
+
+    raw, h = _signed(mod, good)
+    r = https.post(url, content=raw, headers=h)
+    assert r.status_code == 200 and r.json()["ok"] and r.json()["username"] == "gitsadap"
+    assert r.headers["X-ESPReL-Signature"] == mod.sign_response(KEY.encode(), h["X-ESPReL-Nonce"], 200, r.content)
+    assert r.headers["Cache-Control"] == "no-store"
+    # ส่งซ้ำด้วย nonce เดิม (replay) → ปฏิเสธ
+    assert https.post(url, content=raw, headers=h).status_code == 403
+    # ไม่มีลายเซ็น / คีย์ผิด / เวลาเก่า / แก้ body หลังลงลายเซ็น → 403 และไม่ bind LDAP
+    n = len(seen)
+    assert https.post(url, json=good).status_code == 403
+    raw, h = _signed(mod, good, key="z" * 40)
+    assert https.post(url, content=raw, headers=h).status_code == 403
+    raw, h = _signed(mod, good, ts=1)
+    assert https.post(url, content=raw, headers=h).status_code == 403
+    raw, h = _signed(mod, good)
+    assert https.post(url, content=raw.replace(b"gitsadap", b"someone"), headers=h).status_code == 403
+    assert len(seen) == n
+    # HTTP ธรรมดา → ปฏิเสธ
+    raw, h = _signed(mod, good)
+    assert TestClient(mod.app, base_url="http://nred.example").post(url, content=raw, headers=h).status_code == 400
+    # รหัสว่าง / ชื่อแปลก (LDAP injection) → 401 โดยไม่ bind
+    for bad in ({"username": "gitsadap", "password": ""}, {"username": "x)(cn=*", "password": "p"}):
+        raw, h = _signed(mod, bad)
+        assert https.post(url, content=raw, headers=h).status_code == 401
+    assert len(seen) == n
+    # เดารหัส 8 ครั้ง → ล็อกชื่อผู้ใช้นั้น
     for _ in range(8):
-        assert client.post(url, json={"username": "victim", "password": "bad"}, headers=h).status_code == 401
-    assert client.post(url, json={"username": "victim", "password": "nu-pass"}, headers=h).status_code == 429
-    assert client.get("/api/esprel/ldap-health").json()["key_configured"] is True
+        raw, h = _signed(mod, {"username": "victim", "password": "bad"})
+        assert https.post(url, content=raw, headers=h).status_code == 401
+    raw, h = _signed(mod, {"username": "victim", "password": "nu-pass"})
+    assert https.post(url, content=raw, headers=h).status_code == 429
+    # health ไม่เปิดเผยค่าภายใน
+    hj = https.get("/api/esprel/ldap-health").json()
+    assert hj == {"ok": True, "protocol": "v1"}
+
+
+def test_gateway_refuses_short_key(monkeypatch):
+    from fastapi.testclient import TestClient
+    mod, _ = _load_gateway(monkeypatch, key="short-key")
+    raw, h = _signed(mod, {"username": "a", "password": "b"}, key="short-key")
+    r = TestClient(mod.app, base_url="https://nred.example").post("/api/esprel/ldap-verify", content=raw, headers=h)
+    assert r.status_code == 503
+
+
+def test_install_into_nred(tmp_path, monkeypatch):
+    """ติดตั้งเข้าโครงสร้างแบบ NRED (main.py + app/routers) ได้ และรันซ้ำไม่ซ้ำซ้อน"""
+    (tmp_path / "app" / "routers").mkdir(parents=True)
+    (tmp_path / "main.py").write_text(
+        "from fastapi import FastAPI\nfrom app.routers import auth\nfrom app.routers import chat\n\n"
+        "app = FastAPI(\n    title='NRED',\n)\napp.include_router(auth.router)\napp.include_router(chat.router)\n\n"
+        "@app.get('/')\ndef root():\n    return {}\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("SECRET_KEY=x\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    sys.path.insert(0, os.path.join(ROOT, "ldap_gateway"))
+    inst = importlib.import_module("install_into_nred")
+    inst.main()
+    main_py = (tmp_path / "main.py").read_text(encoding="utf-8")
+    lines = main_py.split("\n")
+    assert lines.index(inst.IMPORT_LINE) == 3 and lines.index(inst.INCLUDE_LINE) == 10
+    compile(main_py, "main.py", "exec")
+    assert (tmp_path / "app" / "routers" / "esprel_gateway.py").exists()
+    env = (tmp_path / ".env").read_text(encoding="utf-8")
+    key = [x for x in env.split("\n") if x.startswith("ESPREL_GATEWAY_KEY=")][0].split("=", 1)[1]
+    assert len(key) >= 32
+    inst.main()   # รันซ้ำ
+    assert (tmp_path / "main.py").read_text(encoding="utf-8").count(inst.INCLUDE_LINE) == 1
+    assert (tmp_path / ".env").read_text(encoding="utf-8").count("ESPREL_GATEWAY_KEY=") == 1

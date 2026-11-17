@@ -6,8 +6,13 @@
   B) LDAP_URL          — แอปอยู่ในเครือข่าย มน. แล้ว bind เอง แบบเดียวกับระบบ NRED (user@nu.local, StartTLS ตามตั้งค่า)
 ทั้งสองแบบคืน dict {username, full_name, email, faculty} เมื่อผ่าน, None เมื่อรหัสผ่านผิด, และยก LDAPError เมื่อเชื่อมต่อไม่ได้
 """
+import hashlib
+import hmac
+import json
 import re
+import secrets
 import ssl
+import time
 
 import requests
 
@@ -53,26 +58,56 @@ def authenticate(username, password, server=None):
     return _direct(username, password, server)
 
 
-# ----------------------------------------------------------------- A) ผ่านเซิร์ฟเวอร์ภายใน
+# ----------------------------------------------------------------- A) ผ่านเซิร์ฟเวอร์ภายใน (NRED)
+# โปรโตคอลเดียวกับ ldap_gateway/esprel_ldap_gateway.py: คำขอและคำตอบลงลายเซ็น HMAC-SHA256 ด้วยคีย์ร่วม
+GATEWAY_PROTOCOL = "v1"
+
+
+def _sha(b):
+    return hashlib.sha256(b).hexdigest()
+
+
+def _sign_request(key, ts, nonce, body):
+    return hmac.new(key, f"{GATEWAY_PROTOCOL}\n{ts}\n{nonce}\n{_sha(body)}".encode(), hashlib.sha256).hexdigest()
+
+
+def _sign_response(key, nonce, status, body):
+    return hmac.new(key, f"{GATEWAY_PROTOCOL}-resp\n{nonce}\n{status}\n{_sha(body)}".encode(), hashlib.sha256).hexdigest()
+
+
 def _via_gateway(username, password):
+    url = config.LDAP_GATEWAY_URL
+    key = (config.LDAP_GATEWAY_KEY or "").encode()
+    if len(key) < 32:
+        raise LDAPError("ยังไม่ได้ตั้งค่า LDAP_GATEWAY_KEY (ต้องยาวอย่างน้อย 32 ตัวอักษร) — แจ้งผู้ดูแลระบบ")
+    if not url.lower().startswith("https://") and not config.LDAP_GATEWAY_ALLOW_HTTP:
+        raise LDAPError("LDAP_GATEWAY_URL ต้องเป็น https:// — แจ้งผู้ดูแลระบบ")
+    body = json.dumps({"username": username, "password": password}, separators=(",", ":")).encode()
+    ts, nonce = str(int(time.time())), secrets.token_urlsafe(24)
+    headers = {"Content-Type": "application/json", "X-ESPReL-Timestamp": ts, "X-ESPReL-Nonce": nonce,
+               "X-ESPReL-Signature": _sign_request(key, ts, nonce, body)}
     try:
-        r = requests.post(config.LDAP_GATEWAY_URL, json={"username": username, "password": password},
-                          headers={"X-ESPReL-Key": config.LDAP_GATEWAY_KEY or ""}, timeout=config.LDAP_TIMEOUT + 4)
+        r = requests.post(url, data=body, headers=headers, timeout=config.LDAP_TIMEOUT + 4, allow_redirects=False)
     except requests.RequestException as ex:
         raise LDAPError("ติดต่อเซิร์ฟเวอร์ยืนยันตัวตนของมหาวิทยาลัยไม่ได้ — ลองใหม่อีกครั้ง") from ex
-    if r.status_code == 401:
+    # ยอมรับเฉพาะคำตอบที่ลงลายเซ็นถูกต้องและผูกกับ nonce ของคำขอนี้ (กันเซิร์ฟเวอร์ปลอม/คำตอบปลอม)
+    rsig = r.headers.get("X-ESPReL-Signature", "")
+    signed = bool(rsig) and hmac.compare_digest(rsig, _sign_response(key, nonce, r.status_code, r.content or b""))
+    if r.status_code == 401 and signed:
         return None
     if r.status_code == 429:
         raise LDAPError("ลองเข้าสู่ระบบผิดหลายครั้ง — กรุณารอสักครู่แล้วลองใหม่")
-    if r.status_code == 403:
-        raise LDAPError("เซิร์ฟเวอร์ยืนยันตัวตนปฏิเสธคำขอ (คีย์ LDAP_GATEWAY_KEY ไม่ตรง) — แจ้งผู้ดูแลระบบ")
-    if r.status_code != 200:
-        raise LDAPError(f"เซิร์ฟเวอร์ยืนยันตัวตนตอบกลับผิดปกติ (HTTP {r.status_code})")
+    if r.status_code in (403, 503) and not signed:
+        raise LDAPError("เซิร์ฟเวอร์ยืนยันตัวตนปฏิเสธคำขอ (คีย์หรือเวลาเครื่องไม่ตรงกัน) — แจ้งผู้ดูแลระบบ")
+    if r.status_code == 502:
+        raise LDAPError("เซิร์ฟเวอร์ยืนยันตัวตนติดต่อ LDAP ของมหาวิทยาลัยไม่ได้ — ลองใหม่อีกครั้ง")
+    if r.status_code != 200 or not signed:
+        raise LDAPError(f"เซิร์ฟเวอร์ยืนยันตัวตนตอบกลับผิดปกติ (HTTP {r.status_code}) — แจ้งผู้ดูแลระบบ")
     try:
-        j = r.json()
+        j = json.loads(r.content)
     except ValueError as ex:
         raise LDAPError("เซิร์ฟเวอร์ยืนยันตัวตนตอบกลับผิดรูปแบบ") from ex
-    if not j.get("ok"):
+    if not j.get("ok") or j.get("username") != username:
         return None
     return {"username": username, "full_name": j.get("full_name") or None, "email": (j.get("email") or "").lower() or None,
             "faculty": j.get("department") or None}

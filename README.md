@@ -58,7 +58,7 @@ Web application (Python/Flask) · ฐานข้อมูล **Supabase (Postgr
                                    ไม่มีทั้งคู่ → ปฏิเสธ
   ไม่ผ่าน → แจ้งรหัสผ่านไม่ถูกต้อง (จำกัดผิด 10 ครั้ง/15 นาที)
 ```
-- ติดตั้ง gateway: ดู `ldap_gateway/README.md` (เพิ่มเป็น router ในระบบ NRED หรือรันแยกด้วย uvicorn หลัง HTTPS)
+- ติดตั้ง API ใน NRED: `python ldap_gateway/install_into_nred.py` ในโฟลเดอร์ NRED — คำขอ/คำตอบลงลายเซ็น HMAC, กัน replay, HTTPS เท่านั้น (ดู `ldap_gateway/README.md`)
 - แอปบน Vercel ตั้ง `LDAP_GATEWAY_URL` + `LDAP_GATEWAY_KEY` · ถ้าติดตั้งแอปในเครือข่าย มน. ใช้ `LDAP_URL=ldap://10.10.10.71` + `LDAP_UPN_SUFFIX=@nu.local` แทน
 - พิมพ์ได้ทั้ง `gitsadap`, `gitsadap@nu.ac.th`, `NU\gitsadap` · รหัสผ่านว่างถูกปฏิเสธทุกครั้ง · บัญชีรหัสผ่านภายใน (admin/ห้องปฏิบัติการ/ผู้ตรวจภายนอก) ไม่ผ่าน LDAP
 - `/healthz` แสดง `"ldap": "gateway"` หรือ `"direct"`

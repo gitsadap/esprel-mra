@@ -1,33 +1,69 @@
-"""ESPReL LDAP gateway — ติดตั้งบน "เซิร์ฟเวอร์ภายใน มน." ที่เข้าถึง LDAP/AD ได้ (เช่นเครื่องเดียวกับระบบ NRED)
+"""ESPReL LDAP gateway — API สำหรับระบบ NRED (FastAPI) บน intranet มหาวิทยาลัยนเรศวร
 
-แอป ESPReL MRA บน Vercel ส่ง {username, password} มาที่ POST /api/esprel/ldap-verify (HTTPS + คีย์ลับ)
-gateway bind LDAP แบบเดียวกับ NRED (user@nu.local) แล้วตอบแค่ "ผ่าน/ไม่ผ่าน" + ชื่อ/อีเมล/หน่วยงาน (ถ้าอ่านได้)
-ไม่เก็บรหัสผ่าน ไม่ออก token — การตรวจสิทธิ์ในระบบ ESPReL ทำที่ฐานข้อมูล Supabase ต่อจากนี้
+หน้าที่เดียว: รับชื่อผู้ใช้/รหัสผ่านจากแอป ESPReL MRA (Vercel) → bind LDAP/AD แบบเดียวกับ NRED (user@nu.local)
+→ ตอบ "ผ่าน/ไม่ผ่าน" (+ ชื่อ อีเมล หน่วยงาน ถ้าอ่านได้)  ไม่เก็บรหัสผ่าน ไม่ออก token ไม่ต่อฐานข้อมูล
 
-ใช้ได้ 2 แบบ
-  1) เพิ่มเข้า NRED (FastAPI):   คัดลอกไฟล์นี้ไป app/routers/ แล้วใน main.py
-         from app.routers.esprel_ldap_gateway import router as esprel_ldap_router
-         app.include_router(esprel_ldap_router)
-  2) รันแยก:                     uvicorn esprel_ldap_gateway:app --host 127.0.0.1 --port 8701
-                                 (ให้ nginx/Apache ทำ HTTPS แล้ว proxy มาที่พอร์ตนี้)
+ความปลอดภัย
+  - HTTPS เท่านั้น (ตรวจ X-Forwarded-Proto จาก reverse proxy) — ปิดได้เฉพาะตอนทดสอบด้วย ESPREL_ALLOW_HTTP=1
+  - ทุกคำขอต้องลงลายเซ็น HMAC-SHA256 ด้วยคีย์ลับร่วม (ไม่ส่งคีย์ไปกับคำขอ):
+        X-ESPReL-Timestamp: เวลา unix (คลาดได้ไม่เกิน 60 วินาที)
+        X-ESPReL-Nonce:     ค่าสุ่มใช้ครั้งเดียว (กันการส่งซ้ำ / replay)
+        X-ESPReL-Signature: hex(HMAC(key, "v1\\n{timestamp}\\n{nonce}\\n{sha256(body)}"))
+  - คำตอบลงลายเซ็นกลับ ผูกกับ nonce ของคำขอ → แอป ESPReL เชื่อเฉพาะคำตอบจาก gateway ตัวจริง
+        X-ESPReL-Signature: hex(HMAC(key, "v1-resp\\n{nonce}\\n{status}\\n{sha256(body)}"))
+  - ปฏิเสธรหัสผ่านว่างเสมอ (AD บางเครื่องถือว่า anonymous bind "ผ่าน"), ชื่อผู้ใช้ต้องเป็น [a-z0-9._-]
+  - จำกัดการลองผิด: 8 ครั้ง/15 นาที ต่อชื่อผู้ใช้ และ 30 ครั้ง/15 นาที ต่อ IP · จำกัดขนาดคำขอ 2 KB
+  - ข้อความตอบกลับไม่บอกเหตุผลละเอียด · log ไม่มีรหัสผ่าน · คีย์ต้องยาวอย่างน้อย 32 ตัวอักษร ไม่งั้นปิดบริการ
+  - จำกัด IP ผู้เรียกได้ด้วย ESPREL_ALLOWED_IPS (ถ้า proxy ส่ง X-Forwarded-For มาให้ ระบุ ESPREL_TRUST_PROXY=1)
 
-ตั้งค่า (environment / .env ของเซิร์ฟเวอร์)
-  ESPREL_GATEWAY_KEY   คีย์ลับยาว ๆ (ต้องตรงกับ LDAP_GATEWAY_KEY ของแอป ESPReL)   — จำเป็น
-  ESPREL_LDAP_SERVER   ldap://10.10.10.71        (ค่าเริ่มต้นเหมือน NRED)
-  ESPREL_LDAP_DOMAIN   nu.local                  → bind เป็น user@nu.local
-  ESPREL_LDAP_BASE_DN  DC=nu,DC=local            (ว่าง = ไม่ดึงชื่อ/อีเมล)
-  ESPREL_LDAP_REQUIRE_TLS 0/1 · ESPREL_LDAP_TLS_VALIDATE 0/1 · ESPREL_LDAP_CA_CERT_FILE · ESPREL_LDAP_TIMEOUT
-  ESPREL_ALLOWED_IPS   (ไม่บังคับ) จำกัด IP ผู้เรียก คั่นด้วย ,
+ติดตั้งใน NRED: คัดลอกไฟล์นี้เป็น app/routers/esprel_gateway.py แล้วใน main.py
+        from app.routers.esprel_gateway import router as esprel_gateway_router
+        app.include_router(esprel_gateway_router)
+    (หรือรัน install_into_nred.py ในโฟลเดอร์โปรเจค NRED)
+รันแยกได้: uvicorn esprel_ldap_gateway:app --host 127.0.0.1 --port 8701
+
+ตั้งค่าใน .env ของ NRED (ไฟล์นี้อ่าน .env เองด้วย เพราะ pydantic Settings ไม่ส่งค่าเข้า os.environ)
+  ESPREL_GATEWAY_KEY=<คีย์ลับยาว ≥32 ตัว — ค่าเดียวกับ LDAP_GATEWAY_KEY ของแอป ESPReL>
+  ESPREL_LDAP_SERVER=ldap://10.10.10.71   ESPREL_LDAP_DOMAIN=nu.local   (ค่าเริ่มต้นเหมือน NRED)
+  ESPREL_LDAP_BASE_DN=DC=nu,DC=local      (ไม่บังคับ — ใช้ดึงชื่อ/อีเมล/หน่วยงาน)
+  ESPREL_LDAP_REQUIRE_TLS=0|1  ESPREL_LDAP_TLS_VALIDATE=0|1  ESPREL_LDAP_CA_CERT_FILE=  ESPREL_LDAP_TIMEOUT=8
+  ESPREL_ALLOWED_IPS=  ESPREL_TRUST_PROXY=1  ESPREL_ALLOW_HTTP=0
 """
+import hashlib
 import hmac
+import json
+import logging
 import os
 import re
 import ssl
 import threading
 import time
 
-from fastapi import APIRouter, FastAPI, Header, HTTPException, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import Response
+
+log = logging.getLogger("esprel_gateway")
+PROTOCOL = "v1"
+MAX_SKEW = 60            # วินาที
+MAX_BODY = 2048          # bytes
+USER_RE = re.compile(r"[a-z0-9._\-]{1,64}")
+
+
+def _load_env_file():
+    """อ่าน .env (ของ NRED) เฉพาะค่าที่ขึ้นต้นด้วย ESPREL_ ถ้ายังไม่มีใน environment"""
+    path = os.environ.get("ESPREL_ENV_FILE", ".env")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith("ESPREL_") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except OSError:
+        pass
+
+
+_load_env_file()
 
 
 def _env(k, d=None):
@@ -35,39 +71,80 @@ def _env(k, d=None):
     return v if v not in (None, "") else d
 
 
-GATEWAY_KEY = _env("ESPREL_GATEWAY_KEY")
-LDAP_SERVER = _env("ESPREL_LDAP_SERVER", "ldap://10.10.10.71")
-LDAP_DOMAIN = _env("ESPREL_LDAP_DOMAIN", "nu.local")
-LDAP_BASE_DN = _env("ESPREL_LDAP_BASE_DN", "")
-REQUIRE_TLS = _env("ESPREL_LDAP_REQUIRE_TLS", "0") == "1"
-TLS_VALIDATE = _env("ESPREL_LDAP_TLS_VALIDATE", "1") == "1"
-CA_CERT_FILE = _env("ESPREL_LDAP_CA_CERT_FILE")
-TIMEOUT = int(_env("ESPREL_LDAP_TIMEOUT", "8"))
-ALLOWED_IPS = {x.strip() for x in (_env("ESPREL_ALLOWED_IPS", "") or "").split(",") if x.strip()}
-MAX_FAILS, WINDOW = 8, 900          # ผิดได้ 8 ครั้ง / 15 นาที ต่อชื่อผู้ใช้
-_fails, _lock = {}, threading.Lock()
+class Settings:
+    def __init__(self):
+        self.key = (_env("ESPREL_GATEWAY_KEY") or "").encode()
+        self.ldap_server = _env("ESPREL_LDAP_SERVER", "ldap://10.10.10.71")
+        self.ldap_domain = _env("ESPREL_LDAP_DOMAIN", "nu.local")
+        self.base_dn = _env("ESPREL_LDAP_BASE_DN", "")
+        self.require_tls = _env("ESPREL_LDAP_REQUIRE_TLS", "0") == "1"
+        self.tls_validate = _env("ESPREL_LDAP_TLS_VALIDATE", "1") == "1"
+        self.ca_file = _env("ESPREL_LDAP_CA_CERT_FILE")
+        self.timeout = int(_env("ESPREL_LDAP_TIMEOUT", "8"))
+        self.allowed_ips = {x.strip() for x in (_env("ESPREL_ALLOWED_IPS", "") or "").split(",") if x.strip()}
+        self.trust_proxy = _env("ESPREL_TRUST_PROXY", "1") == "1"
+        self.allow_http = _env("ESPREL_ALLOW_HTTP", "0") == "1"
 
-router = APIRouter(prefix="/api/esprel", tags=["esprel"])
+    @property
+    def key_ok(self):
+        return len(self.key) >= 32
 
 
-class VerifyIn(BaseModel):
-    username: str
-    password: str
+S = Settings()
 
 
-def _blocked(user):
+# ----------------------------------------------------------------- ลายเซ็น
+def body_hash(body: bytes) -> str:
+    return hashlib.sha256(body).hexdigest()
+
+
+def sign_request(key: bytes, ts: str, nonce: str, body: bytes) -> str:
+    return hmac.new(key, f"{PROTOCOL}\n{ts}\n{nonce}\n{body_hash(body)}".encode(), hashlib.sha256).hexdigest()
+
+
+def sign_response(key: bytes, nonce: str, status: int, body: bytes) -> str:
+    return hmac.new(key, f"{PROTOCOL}-resp\n{nonce}\n{status}\n{body_hash(body)}".encode(), hashlib.sha256).hexdigest()
+
+
+# ----------------------------------------------------------------- กันส่งซ้ำ + จำกัดการลองผิด (ในหน่วยความจำ)
+class _Window:
+    def __init__(self, limit, seconds):
+        self.limit, self.seconds, self.hits, self.lock = limit, seconds, {}, threading.Lock()
+
+    def _clean(self, k, now):
+        self.hits[k] = [t for t in self.hits.get(k, []) if now - t < self.seconds]
+
+    def blocked(self, k):
+        now = time.time()
+        with self.lock:
+            self._clean(k, now)
+            return len(self.hits[k]) >= self.limit
+
+    def add(self, k):
+        with self.lock:
+            self.hits.setdefault(k, []).append(time.time())
+            if len(self.hits) > 50000:          # กันหน่วยความจำโต
+                self.hits.clear()
+
+
+_user_fails = _Window(8, 900)
+_ip_fails = _Window(30, 900)
+_nonces, _nonce_lock = {}, threading.Lock()
+
+
+def _nonce_fresh(nonce):
     now = time.time()
-    with _lock:
-        hits = [t for t in _fails.get(user, []) if now - t < WINDOW]
-        _fails[user] = hits
-        return len(hits) >= MAX_FAILS
+    with _nonce_lock:
+        for n, t in list(_nonces.items()):
+            if now - t > MAX_SKEW * 2:
+                del _nonces[n]
+        if nonce in _nonces:
+            return False
+        _nonces[nonce] = now
+        return True
 
 
-def _fail(user):
-    with _lock:
-        _fails.setdefault(user, []).append(time.time())
-
-
+# ----------------------------------------------------------------- LDAP (แบบเดียวกับ NRED)
 def _first(entry, attr):
     try:
         v = {k.lower(): x for k, x in entry.entry_raw_attributes.items()}.get(attr.lower())
@@ -80,26 +157,28 @@ def _first(entry, attr):
     return str(v) if v else None
 
 
-def ldap_bind(username, password):
-    """True/False + ข้อมูลผู้ใช้ (ถ้ามี BASE_DN) — ยก RuntimeError เมื่อเชื่อมต่อ LDAP ไม่ได้"""
+def ldap_bind(username: str, password: str):
+    """(True/False, ข้อมูลผู้ใช้) — ยก RuntimeError เมื่อเชื่อมต่อ LDAP ไม่ได้"""
     from ldap3 import SIMPLE, Connection, Server, Tls
     from ldap3.core.exceptions import LDAPBindError, LDAPException
     from ldap3.utils.conv import escape_filter_chars
 
-    use_ssl = LDAP_SERVER.lower().startswith("ldaps://")
-    tls = Tls(validate=ssl.CERT_REQUIRED if TLS_VALIDATE else ssl.CERT_NONE, ca_certs_file=CA_CERT_FILE or None)
-    server = Server(LDAP_SERVER, use_ssl=use_ssl, tls=tls, connect_timeout=TIMEOUT)
-    upn = f"{username}@{LDAP_DOMAIN}"
+    use_ssl = S.ldap_server.lower().startswith("ldaps://")
+    tls = Tls(validate=ssl.CERT_REQUIRED if S.tls_validate else ssl.CERT_NONE, ca_certs_file=S.ca_file or None)
+    server = Server(S.ldap_server, use_ssl=use_ssl, tls=tls, connect_timeout=S.timeout)
+    upn = f"{username}@{S.ldap_domain}"
+
+    def connect():
+        return Connection(server, user=upn, password=password, authentication=SIMPLE, receive_timeout=S.timeout,
+                          check_names=False, raise_exceptions=False)
     try:
-        conn = Connection(server, user=upn, password=password, authentication=SIMPLE, receive_timeout=TIMEOUT,
-                          check_names=False)
-        if not use_ssl and REQUIRE_TLS:
+        conn = connect()
+        if not use_ssl and S.require_tls:
             conn.open()
             conn.start_tls()
         if not conn.bind():
-            if not use_ssl and not REQUIRE_TLS and (conn.result or {}).get("result") == 8:   # strongerAuthRequired
-                conn = Connection(server, user=upn, password=password, authentication=SIMPLE, receive_timeout=TIMEOUT,
-                                  check_names=False)
+            if not use_ssl and not S.require_tls and (conn.result or {}).get("result") == 8:  # strongerAuthRequired
+                conn = connect()
                 conn.open()
                 conn.start_tls()
                 if not conn.bind():
@@ -107,10 +186,10 @@ def ldap_bind(username, password):
             else:
                 return False, {}
         info = {}
-        if LDAP_BASE_DN:
+        if S.base_dn:
             try:
-                conn.search(LDAP_BASE_DN, f"(sAMAccountName={escape_filter_chars(username)})",
-                            attributes=["displayName", "mail", "department"])
+                conn.search(S.base_dn, f"(sAMAccountName={escape_filter_chars(username)})",
+                            attributes=["displayName", "mail", "department"], size_limit=1)
                 if conn.entries:
                     e = conn.entries[0]
                     info = {"full_name": _first(e, "displayName"), "email": _first(e, "mail"),
@@ -122,35 +201,86 @@ def ldap_bind(username, password):
     except LDAPBindError:
         return False, {}
     except LDAPException as ex:
-        raise RuntimeError(str(ex)) from ex
+        raise RuntimeError(type(ex).__name__) from ex
+
+
+# ----------------------------------------------------------------- API
+router = APIRouter(prefix="/api/esprel", tags=["esprel"], include_in_schema=False)
+
+
+def _client_ip(request: Request):
+    if S.trust_proxy:
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+def _reply(status: int, payload: dict, nonce: str = ""):
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
+    headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+    if nonce and S.key_ok:
+        headers["X-ESPReL-Signature"] = sign_response(S.key, nonce, status, body)
+    return Response(content=body, status_code=status, media_type="application/json", headers=headers)
 
 
 @router.post("/ldap-verify")
-def ldap_verify(body: VerifyIn, request: Request, x_esprel_key: str = Header(default="")):
-    if not GATEWAY_KEY or not hmac.compare_digest(x_esprel_key.encode(), GATEWAY_KEY.encode()):
-        raise HTTPException(status_code=403, detail="forbidden")
-    if ALLOWED_IPS and (request.client.host if request.client else "") not in ALLOWED_IPS:
-        raise HTTPException(status_code=403, detail="forbidden")
-    user = (body.username or "").strip().lower()
-    if not re.fullmatch(r"[a-z0-9._\-]{1,64}", user) or not body.password:
-        # ปฏิเสธรหัสผ่านว่างเสมอ (กัน anonymous bind ที่ AD ตอบว่าผ่าน)
-        raise HTTPException(status_code=401, detail="invalid")
-    if _blocked(user):
-        raise HTTPException(status_code=429, detail="too many attempts")
+async def ldap_verify(request: Request):
+    ip = _client_ip(request)
+    if not S.key_ok:
+        log.error("ESPReL gateway disabled: ESPREL_GATEWAY_KEY missing or shorter than 32 chars")
+        return _reply(503, {"ok": False, "error": "unavailable"})
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").lower()
+    if proto != "https" and not S.allow_http:
+        return _reply(400, {"ok": False, "error": "https required"})
+    if S.allowed_ips and ip not in S.allowed_ips:
+        return _reply(403, {"ok": False, "error": "forbidden"})
+    if _ip_fails.blocked(ip):
+        return _reply(429, {"ok": False, "error": "too many attempts"})
+
+    ts = request.headers.get("x-esprel-timestamp", "")
+    nonce = request.headers.get("x-esprel-nonce", "")
+    sig = request.headers.get("x-esprel-signature", "")
+    body = await request.body()
+    if len(body) > MAX_BODY or not re.fullmatch(r"[A-Za-z0-9_\-]{16,64}", nonce or "") or not ts.isdigit():
+        _ip_fails.add(ip)
+        return _reply(403, {"ok": False, "error": "forbidden"})
+    if abs(time.time() - int(ts)) > MAX_SKEW or not hmac.compare_digest(sig, sign_request(S.key, ts, nonce, body)):
+        _ip_fails.add(ip)
+        log.warning("ESPReL gateway: bad signature/timestamp from %s", ip)
+        return _reply(403, {"ok": False, "error": "forbidden"})
+    if not _nonce_fresh(nonce):
+        _ip_fails.add(ip)
+        return _reply(403, {"ok": False, "error": "replay"}, nonce)
+
     try:
-        ok, info = ldap_bind(user, body.password)
+        data = json.loads(body)
+        user = str(data.get("username", "")).strip().lower()
+        password = str(data.get("password", ""))
+    except (ValueError, AttributeError):
+        return _reply(400, {"ok": False, "error": "bad request"}, nonce)
+    if not USER_RE.fullmatch(user) or not password or len(password) > 256:
+        return _reply(401, {"ok": False}, nonce)
+    if _user_fails.blocked(user):
+        return _reply(429, {"ok": False, "error": "too many attempts"}, nonce)
+    try:
+        ok, info = ldap_bind(user, password)
     except RuntimeError as ex:
-        raise HTTPException(status_code=502, detail="ldap unavailable") from ex
+        log.error("ESPReL gateway: LDAP unavailable (%s)", ex)
+        return _reply(502, {"ok": False, "error": "ldap unavailable"}, nonce)
     if not ok:
-        _fail(user)
-        raise HTTPException(status_code=401, detail="invalid")
-    return {"ok": True, "username": user, **info}
+        _user_fails.add(user)
+        _ip_fails.add(ip)
+        log.info("ESPReL AUTH fail user=%s ip=%s", user, ip)
+        return _reply(401, {"ok": False}, nonce)
+    log.info("ESPReL AUTH ok user=%s ip=%s", user, ip)
+    return _reply(200, {"ok": True, "username": user, **{k: v for k, v in info.items() if v}}, nonce)
 
 
 @router.get("/ldap-health")
 def ldap_health():
-    return {"ok": True, "server": LDAP_SERVER.split("//")[-1].split(":")[0], "domain": LDAP_DOMAIN,
-            "key_configured": bool(GATEWAY_KEY)}
+    # ไม่เปิดเผย IP/ค่าภายใน — บอกแค่ว่าพร้อมใช้งานหรือไม่
+    return {"ok": S.key_ok, "protocol": PROTOCOL}
 
 
 # รันแยกเป็นบริการเล็ก ๆ: uvicorn esprel_ldap_gateway:app --host 127.0.0.1 --port 8701
