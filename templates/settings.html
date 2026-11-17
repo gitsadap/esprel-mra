@@ -10,7 +10,7 @@
     <div class="field"><label>ลิงก์แบบฟอร์มรายงานการยกระดับ</label><input type="text" name="upgrade_form_url" value="{{ s.upgrade_form_url }}"></div>
     <div class="field"><label>QR code ท้าย Report 1</label>
       <div class="row"><img src="{{ url_for('qr_image') }}" style="width:90px;border:1px solid var(--line);border-radius:8px">
-        <input type="file" name="qr" accept="image/png,image/jpeg" style="flex:1">
+        <input type="file" name="qr" accept="image/png,image/jpeg" data-noshrink style="flex:1">
         <label class="row" style="gap:6px;font-weight:400"><input type="checkbox" name="qr_reset" value="1"> ใช้ QR ตั้งต้น</label></div></div>
   </div>
   <div class="card">

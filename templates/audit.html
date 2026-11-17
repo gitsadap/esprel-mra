@@ -264,12 +264,28 @@
 </div>
 
 <div class="grid g2">
-  <div class="card">
+  <div class="card" id="team">
     <div class="card-h"><h3>คณะผู้ตรวจประเมิน</h3></div>
     {% for u in team %}<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>{{ u.full_name }}</span><span class="spacer"></span>
       {% if u.id == a.lead_user_id %}<span class="badge amber">หัวหน้าผู้ตรวจ</span>{% endif %}
       {% for e, v in asg.items() if v.user_id == u.id %}<span class="badge gray">องค์ {{ e }}</span>{% endfor %}</div>
     {% else %}<div class="muted">ยังไม่ได้กำหนด</div>{% endfor %}
+
+    <h4 style="margin:14px 0 4px">👁 ผู้สังเกตการณ์ <small class="muted" style="font-weight:400">ดูผล + บันทึกความเห็น ไม่ให้คะแนน</small></h4>
+    {% for u in obs %}<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>{{ u.full_name }}</span><small class="muted">{{ u.username }}</small><span class="spacer"></span>
+      {% if is_lead() %}<form method="post" action="{{ url_for('audit_observers', audit_id=a.id) }}" data-confirm="เอา {{ u.full_name }} ออกจากผู้สังเกตการณ์ของการตรวจนี้?" style="margin:0">
+        <input type="hidden" name="action" value="remove"><input type="hidden" name="user_id" value="{{ u.id }}"><button class="btn sm">เอาออก</button></form>{% endif %}</div>
+    {% else %}<div class="muted" style="padding:4px 0">ยังไม่มี</div>{% endfor %}
+    {% if is_lead() %}
+      {% set obs_ids = obs|map(attribute='id')|list %}
+      {% set cand = observer_users|rejectattr('id', 'in', obs_ids)|list %}
+      {% if cand %}
+      <form method="post" action="{{ url_for('audit_observers', audit_id=a.id) }}" class="row" style="gap:8px;margin-top:8px">
+        <select name="user_id" style="flex:1;min-width:0">{% for u in cand %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.username }})</option>{% endfor %}</select>
+        <button class="btn sm primary">+ เชิญ</button></form>
+      {% endif %}
+      <p class="hint" style="margin:6px 0 0">{% if not observer_users %}ยังไม่มีบัญชีผู้สังเกตการณ์ — {% endif %}สร้างบัญชีที่เมนู <a href="{{ url_for('users', role='observer') }}">ผู้ใช้ → ผู้สังเกตการณ์</a></p>
+    {% endif %}
   </div>
   <div class="card">
     <div class="card-h"><h3>ประวัติรายงาน</h3></div>

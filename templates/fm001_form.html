@@ -47,7 +47,7 @@
         <li>รอหัวหน้าผู้ตรวจอนุมัติและจัดทีมตรวจประเมิน</li>
       </ol></div>
     <form method="post" action="{{ url_for('application_signed', app_id=ap.id) }}" enctype="multipart/form-data" class="row" style="align-items:flex-end">
-      <label class="btn photo-btn">📎 แนบใบสมัครที่ลงนามแล้ว<input type="file" name="file_signed" accept="image/*,application/pdf" multiple hidden onchange="this.form.submit()"></label>
+      <label class="btn photo-btn">📎 แนบใบสมัครที่ลงนามแล้ว<input type="file" name="file_signed" accept="image/*,application/pdf" multiple hidden data-autosubmit="1"></label>
     </form>
   </div>
   {% if files.get('signed') %}<div style="margin-top:8px"><b style="font-size:.9rem">ใบสมัครที่ลงนามแล้ว</b>{{ filelist('signed', true) }}</div>

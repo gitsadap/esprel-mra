@@ -14,6 +14,7 @@ from core import (
     login_required,
     observer_notes,
     observers,
+    roles,
     summary_for,
     team,
 )
@@ -55,6 +56,26 @@ def _guard(audit_id):
 
 
 def register(app):
+    @app.route("/audit/<int:audit_id>/observers", methods=["POST"])
+    @roles("lead", "admin")
+    def audit_observers(audit_id):
+        """เชิญ/เอาออก ผู้สังเกตการณ์ จากการ์ดคณะผู้ตรวจในหน้าการตรวจ"""
+        load_audit(audit_id)
+        db = get_db()
+        uid = request.form.get("user_id", type=int)
+        cur = [u["id"] for u in observers(audit_id)]
+        if request.form.get("action") == "remove":
+            save_observers(audit_id, [u for u in cur if u != uid])
+            flash("เอาผู้สังเกตการณ์ออกจากการตรวจนี้แล้ว", "ok")
+        elif uid:
+            save_observers(audit_id, cur + [uid])
+            u = db.execute("SELECT full_name FROM users WHERE id=? AND role='observer'", (uid,)).fetchone()
+            if u:
+                flash(f"เชิญ {u['full_name']} เป็นผู้สังเกตการณ์แล้ว — เข้าสู่ระบบแล้วจะเห็นการตรวจนี้ที่เมนู “การตรวจที่สังเกตการณ์”", "ok")
+        log(audit_id, "observers")
+        db.commit()
+        return redirect(url_for("audit_view", audit_id=audit_id) + "#team")
+
     @app.route("/observe")
     @login_required
     def observe_home():

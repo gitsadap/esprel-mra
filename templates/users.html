@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head"><div><div class="crumb"><a href="{{ url_for('dashboard') }}">ภาพรวม</a></div><h1>ผู้ใช้งาน / คณะผู้ตรวจประเมิน</h1>
   <div class="muted">ผู้ตรวจ/ทีมงานเข้าสู่ระบบด้วย LDAP ของมหาวิทยาลัย (ต้องเพิ่มชื่อผู้ใช้ไว้ที่นี่ก่อน) · บัญชีห้องปฏิบัติการสร้างอัตโนมัติเมื่อส่งใบสมัคร FM-001 (ชื่อผู้ใช้ = อีเมลผู้ประสานงาน)</div></div>
-  <div class="seg">{% for k, v in [('', 'ทั้งหมด'), ('lead','หัวหน้าผู้ตรวจ'), ('assessor','ผู้ตรวจ'), ('lab','ห้องปฏิบัติการ'), ('admin','ผู้ดูแล')] %}
+  <div class="seg">{% for k, v in [('', 'ทั้งหมด'), ('lead','หัวหน้าผู้ตรวจ'), ('assessor','ผู้ตรวจ'), ('observer','ผู้สังเกตการณ์'), ('lab','ห้องปฏิบัติการ'), ('admin','ผู้ดูแล')] %}
     <a href="{{ url_for('users', role=k or None) }}"><button class="{{ 'on' if (role or '') == k }}">{{ v }}</button></a>{% endfor %}</div>
 </div>
 <div class="grid g2" style="align-items:start">
@@ -37,13 +37,13 @@
   {% endfor %}
 </div>
 <form method="post" class="card">
-  <h3>เพิ่มผู้ตรวจ / ทีมงาน</h3>
+  <h3>เพิ่มผู้ตรวจ / ผู้สังเกตการณ์ / ทีมงาน</h3>
   <input type="hidden" name="action" value="add">
   <div class="field"><label>ชื่อผู้ใช้ *</label><input type="text" name="username" required autocapitalize="off" placeholder="บุคลากร มน.: ชื่อผู้ใช้ NU เช่น somchaij · ภายนอก: อีเมล"></div>
   <div class="field"><label>ชื่อ-สกุล (แสดงในรายงาน)</label><input type="text" name="full_name" placeholder="ระบบจะดึงจาก LDAP เมื่อเข้าสู่ระบบครั้งแรก"></div>
   <div class="field"><label>คณะ/หน่วยงาน</label><input type="text" name="faculty"></div>
   <div class="field"><label>อีเมล</label><input type="text" name="email"></div>
-  <div class="field"><label>บทบาท</label><select name="role"><option value="assessor">ผู้ตรวจประเมิน</option><option value="lead">หัวหน้าผู้ตรวจประเมิน</option><option value="observer">ผู้สังเกตการณ์</option><option value="lab">ห้องปฏิบัติการ</option>{% if g.user.role=='admin' %}<option value="admin">ผู้ดูแลระบบ</option>{% endif %}</select></div>
+  <div class="field"><label>บทบาท</label><select name="role"><option value="assessor">ผู้ตรวจประเมิน</option><option value="lead">หัวหน้าผู้ตรวจประเมิน</option><option value="observer" {{ 'selected' if role == 'observer' }}>ผู้สังเกตการณ์</option><option value="lab">ห้องปฏิบัติการ</option>{% if g.user.role=='admin' %}<option value="admin">ผู้ดูแลระบบ</option>{% endif %}</select></div>
   <div class="field"><label>รหัสผ่านภายในระบบ (ไม่บังคับ)</label><input type="password" name="password" autocomplete="new-password" placeholder="เว้นว่างเพื่อใช้ LDAP"></div>
   <button class="btn primary">+ เพิ่มผู้ใช้</button>
   <p class="hint">ผู้ใช้ภายนอก (ชื่อผู้ใช้เป็นอีเมล) ที่ไม่ได้ตั้งรหัสผ่าน: ระบบสร้างรหัสผ่านและส่งทางอีเมลให้ · หัวหน้าผู้ตรวจ: อนุมัติใบสมัคร จัดทีม สร้าง Report เริ่มรอบ 2 · ผู้ตรวจ: ให้คะแนน บันทึก NC/OBS ถ่ายรูปหลักฐาน · ผู้สังเกตการณ์: ดูผลและบันทึกความเห็นเฉพาะการตรวจที่ได้รับเชิญ · ห้องปฏิบัติการ: ลงทะเบียนห้อง ดูผล ตอบ CAPA</p>

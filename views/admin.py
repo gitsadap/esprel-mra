@@ -108,6 +108,9 @@ def register(app):
                                   f"รหัสผ่านชั่วคราว {gen}", "ok" if st == "dev" else "error")
                     else:
                         flash("เพิ่มผู้ใช้เรียบร้อย", "ok")
+                    if role == "observer":
+                        flash("ขั้นต่อไป: เปิดหน้าการตรวจของห้องที่ต้องการ (เมนู “ภาพรวม” → คลิกชื่อห้อง) → การ์ด “คณะผู้ตรวจประเมิน” "
+                              "→ เลือกชื่อแล้วกด “+ เชิญ”", "ok")
             elif act == "resetpw":
                 u = db.execute("SELECT * FROM users WHERE id=?", (request.form.get("uid", type=int),)).fetchone()
                 if u and (g.user["role"] == "admin" or u["role"] in ("lab", "observer")):
@@ -175,7 +178,7 @@ def register(app):
             f = request.files.get("qr")
             if f and f.filename:
                 try:
-                    path, *_ = save_upload(f, "settings", IMG_TYPES)
+                    path, *_ = save_upload(f, "settings", IMG_TYPES, shrink=False)
                     db.execute("INSERT INTO settings(key,value) VALUES('qr_image',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                                (path,))
                 except (ValueError, RuntimeError) as ex:

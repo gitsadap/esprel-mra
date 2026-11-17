@@ -237,4 +237,5 @@ def register(app):
                                asg=assignments(audit_id), team=team(audit_id), reports=reports,
                                editable=round_editable(a, rnd), follow=follow,
                                r2prog=r2_progress(audit_id, follow), atts=get_attachments(audit_id), logs=logs,
-                               obs=observers(audit_id), obs_notes=observer_notes(audit_id))
+                               obs=observers(audit_id), obs_notes=observer_notes(audit_id),
+                               observer_users=observer_users() if is_lead() else [])

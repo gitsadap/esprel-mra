@@ -83,7 +83,7 @@ table.sc{border-collapse:collapse;margin:1.5mm auto 1mm;width:118mm;font-size:9.
   <button class="pri" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
   <form method="post" action="{{ url_for('application_signed', app_id=ap.id) }}" enctype="multipart/form-data" style="margin:0">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-    <label class="{{ 'ok' if files.get('signed') }}">📎 {{ 'แนบฉบับลงนามเพิ่ม' if files.get('signed') else 'แนบฉบับที่ลงนามแล้ว' }}<input type="file" name="file_signed" accept="image/*,application/pdf" multiple hidden onchange="this.form.submit()"></label>
+    <label class="{{ 'ok' if files.get('signed') }}">📎 {{ 'แนบฉบับลงนามเพิ่ม' if files.get('signed') else 'แนบฉบับที่ลงนามแล้ว' }}<input type="file" name="file_signed" accept="image/*,application/pdf" multiple hidden data-autosubmit="1"></label>
   </form>
 </div>
 
@@ -191,6 +191,7 @@ table.sc{border-collapse:collapse;margin:1.5mm auto 1mm;width:118mm;font-size:9.
   </div>
   {% endfor %}
 </div>
+<script src="{{ url_for('static', filename='js/shrink.js') }}?v=1"></script>
 <script>
 // ย่อแผ่นงาน A4 ให้พอดีหน้าจอมือถือ (ไม่กระทบการพิมพ์)
 (function () {

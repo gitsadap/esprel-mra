@@ -1,4 +1,5 @@
 """ค่าคงที่และฟังก์ชันกลางที่ทุกหน้าใช้ร่วมกัน: สิทธิ์ผู้ใช้, ข้อมูลการตรวจ, ไฟล์อัปโหลด, บัญชี/อีเมล"""
+import io
 import os
 import re
 import secrets
@@ -308,8 +309,37 @@ def content_disposition(name, inline=True):
     return f"{'inline' if inline else 'attachment'}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"
 
 
-def save_upload(fs, prefix, allowed):
-    """บันทึกไฟล์อัปโหลดไปยัง storage คืน (path, filename, content_type, size)"""
+IMG_MAX_SIDE = 1600      # ด้านยาวสุดของรูปที่เก็บ (พอสำหรับดูบนจอ/พิมพ์ในรายงาน A4)
+IMG_QUALITY = 82
+
+
+def shrink_image(data, ctype, max_side=IMG_MAX_SIDE, quality=IMG_QUALITY):
+    """ย่อรูปให้ด้านยาวไม่เกิน max_side, หมุนตาม EXIF, ตัดข้อมูลแฝง (EXIF/GPS) แล้วบันทึกเป็น JPEG
+    (PNG ที่มีพื้นโปร่งใสคงเป็น PNG) — เปิดไม่ได้ (เช่น HEIC) คืนไฟล์เดิม · คืน (data, content_type)"""
+    try:
+        from PIL import Image, ImageOps
+        Image.MAX_IMAGE_PIXELS = 80_000_000
+        im = Image.open(io.BytesIO(data))
+        im.load()
+        im = ImageOps.exif_transpose(im)
+    except Exception:  # noqa: BLE001
+        return data, ctype
+    im.thumbnail((max_side, max_side), Image.LANCZOS)
+    out = io.BytesIO()
+    alpha = im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info)
+    if alpha and ctype == "image/png":
+        im.save(out, "PNG", optimize=True)
+        new_type = "image/png"
+    else:
+        if im.mode != "RGB":
+            im = im.convert("RGB")
+        im.save(out, "JPEG", quality=quality, optimize=True, progressive=True)
+        new_type = "image/jpeg"
+    return out.getvalue(), new_type
+
+
+def save_upload(fs, prefix, allowed, shrink=True):
+    """บันทึกไฟล์อัปโหลดไปยัง storage (รูปถูกย่อก่อนเก็บ) คืน (path, filename, content_type, size)"""
     ctype = (fs.mimetype or "").lower()
     if ctype not in allowed:
         raise ValueError("ชนิดไฟล์ไม่รองรับ (รองรับรูปภาพ JPG/PNG/WEBP" + (" และ PDF" if "application/pdf" in allowed else "") + ")")
@@ -317,7 +347,12 @@ def save_upload(fs, prefix, allowed):
     if len(data) > 8 * 1024 * 1024:
         raise ValueError("ไฟล์ใหญ่เกิน 8 MB")
     name = _display_name(fs.filename) or "file"
-    path = f"{prefix}/{secrets.token_hex(8)}{allowed[ctype]}"
+    if shrink and ctype.startswith("image/"):
+        data, ctype = shrink_image(data, ctype)
+        if ctype == "image/jpeg":
+            name = re.sub(r"\.(png|webp|heic|heif|jpe?g)$", "", name, flags=re.I) + ".jpg"
+    ext = allowed.get(ctype) or IMG_TYPES.get(ctype, "")
+    path = f"{prefix}/{secrets.token_hex(8)}{ext}"
     storage.save(path, data, ctype)
     return path, name, ctype, len(data)
 
