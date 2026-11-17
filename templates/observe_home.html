@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}การตรวจที่สังเกตการณ์{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">ESPReL MRA · ผู้สังเกตการณ์</div><h1>การตรวจที่สังเกตการณ์</h1>
+    <div class="muted">ดูผลการตรวจประเมินของห้องปฏิบัติการที่ได้รับเชิญ และบันทึกความเห็นถึงคณะผู้ตรวจ (ไม่นับเป็นคะแนนหรือข้อค้นพบ)</div></div>
+</div>
+{% if not audits %}
+<div class="card empty">
+  <div style="font-size:2.4rem">👁</div>
+  <h2>ยังไม่ได้รับเชิญเข้าร่วมการตรวจ</h2>
+  <p>เมื่อหัวหน้าผู้ตรวจเพิ่มท่านเป็นผู้สังเกตการณ์ของการตรวจห้องปฏิบัติการ รายการจะแสดงที่นี่</p>
+</div>
+{% else %}
+<div class="card">
+  {% for a in audits %}{% set s = STATUS_TH.get(a.status, (a.status, 'gray')) %}
+  <a class="row" href="{{ url_for('observe_audit', audit_id=a.id) }}" style="padding:10px 0;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;flex-wrap:wrap;gap:8px">
+    <b style="flex:1;min-width:200px">{{ a.lab_name }}</b>
+    <small class="muted">ปี {{ a.year_be }}{% if a.faculty %} · {{ a.faculty }}{% endif %}{% if a.r1_date %} · ตรวจ {{ thai_date(a.r1_date) }}{% endif %}</small>
+    <span class="badge {{ s[1] }}">{{ s[0] }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

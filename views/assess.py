@@ -17,6 +17,7 @@ from core import (
     get_capa,
     get_responses,
     is_lab_member,
+    is_observer,
     is_staff,
     lab_may_see_results,
     load_audit,
@@ -181,7 +182,8 @@ def register(app):
         if not att:
             abort(404)
         a = load_audit(att["audit_id"])
-        if not is_staff() and (not is_lab_member(a["lab_id"]) or (att["kind"] == "finding" and not lab_may_see_results(a))):
+        if not is_staff() and not is_observer(a["id"]) and (
+                not is_lab_member(a["lab_id"]) or (att["kind"] == "finding" and not lab_may_see_results(a))):
             abort(403)
         url = storage.signed_url(att["path"])
         if url:

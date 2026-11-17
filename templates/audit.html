@@ -283,6 +283,22 @@
   </div>
 </div>
 
+{% if obs or obs_notes %}
+<div class="card" style="margin-top:14px">
+  <div class="card-h"><h3>ผู้สังเกตการณ์ และความเห็น ({{ obs_notes|length }})</h3>
+    <a class="btn sm" href="{{ url_for('observe_audit', audit_id=a.id) }}">มุมมองผู้สังเกตการณ์</a></div>
+  <div class="muted" style="margin-bottom:6px">ผู้สังเกตการณ์: {% for u in obs %}{{ u.full_name }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}</div>
+  {% for n in obs_notes %}
+  <div style="padding:8px 0;border-top:1px solid var(--line)">
+    <div class="row" style="gap:6px;flex-wrap:wrap"><b>{{ n.full_name or '—' }}</b><span class="badge gray">ครั้งที่ {{ n.round }}</span>
+      {% if n.element %}<span class="badge blue">องค์ {{ n.element }}</span>{% endif %}<span class="spacer"></span>
+      <small class="muted">{{ thai_date(n.created_at, True) }} {{ n.created_at[11:16] }}</small></div>
+    <div style="white-space:pre-wrap;margin-top:4px">{{ n.body }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <details class="card" style="margin-top:14px">
   <summary style="cursor:pointer;font-weight:600">ประวัติการแก้ไข (30 รายการล่าสุด)</summary>
   <div class="tbl-wrap" style="margin-top:10px"><table class="tbl">

@@ -21,7 +21,7 @@ BASE = config.BASE
 INSTANCE = config.INSTANCE
 STAFF = ("admin", "lead", "assessor")
 ROLE_TH = {"admin": "ผู้ดูแลระบบ", "lead": "หัวหน้าผู้ตรวจประเมิน", "assessor": "ผู้ตรวจประเมิน",
-           "lab": "ห้องปฏิบัติการ"}
+           "observer": "ผู้สังเกตการณ์", "lab": "ห้องปฏิบัติการ"}
 STATUS_TH = {
     "r1": ("กำลังตรวจรอบที่ 1", "blue"),
     "r1_reported": ("ออก Report 1 แล้ว · รอห้องปฏิบัติการตอบ CAPA", "amber"),
@@ -105,8 +105,29 @@ def is_lab_member(lab_id, user=None):
         (lab_id, user["id"], lab_id, user["id"])).fetchone())
 
 
+def is_observer(audit_id, user=None):
+    """ผู้สังเกตการณ์ที่ได้รับเชิญเข้าร่วมการตรวจรายการนี้"""
+    user = user or g.user
+    if not user:
+        return False
+    return bool(get_db().execute("SELECT 1 x FROM audit_observers WHERE audit_id=? AND user_id=?",
+                                 (audit_id, user["id"])).fetchone())
+
+
+def observers(audit_id):
+    return get_db().execute(
+        """SELECT u.* FROM audit_observers o JOIN users u ON u.id=o.user_id WHERE o.audit_id=? ORDER BY u.full_name""",
+        (audit_id,)).fetchall()
+
+
+def observer_notes(audit_id):
+    return get_db().execute(
+        """SELECT n.*, u.full_name FROM observer_notes n LEFT JOIN users u ON u.id=n.user_id
+           WHERE n.audit_id=? ORDER BY n.id DESC""", (audit_id,)).fetchall()
+
+
 def can_view_audit(a):
-    return is_staff() or is_lab_member(a["lab_id"])
+    return is_staff() or is_lab_member(a["lab_id"]) or is_observer(a["id"])
 
 
 def lab_may_see_results(a):
@@ -270,6 +291,9 @@ def mail_credentials(u, password, lab_name=None, app_no=None):
                   "  1) เข้าสู่ระบบ → พิมพ์ใบสมัคร FM-001 ให้ผู้มีอำนาจลงนาม แล้วแนบไฟล์ที่ลงนามกลับเข้าระบบ",
                   "  2) ติดตามสถานะใบสมัคร กำหนดการตรวจ ผลการตรวจประเมิน และตอบแผนการแก้ไข (CAPA) ได้ในระบบ",
                   "", "หากท่านไม่ได้เป็นผู้ส่งใบสมัครนี้ โปรดแจ้งกองการวิจัยและนวัตกรรม มหาวิทยาลัยนเรศวร"]
+    elif u["role"] == "observer":
+        lines += ["ท่านได้รับสิทธิ์เป็นผู้สังเกตการณ์ในระบบ ESPReL MRA — เมื่อได้รับเชิญเข้าร่วมการตรวจห้องปฏิบัติการ",
+                  "จะเห็นรายการที่ “การตรวจที่สังเกตการณ์” ดูผลการตรวจ และบันทึกความเห็นถึงคณะผู้ตรวจได้"]
     else:
         lines += ["ท่านได้รับสิทธิ์เป็นผู้ตรวจประเมินในระบบ ESPReL MRA — เมื่อได้รับมอบหมายให้ตรวจห้องปฏิบัติการ",
                   "จะเห็นรายการที่ “ภาพรวม” และให้คะแนน/บันทึกข้อค้นพบได้ทั้งบนมือถือ iPad และคอมพิวเตอร์"]
@@ -303,7 +327,7 @@ def to_nu_account(db, user, nu_username, email=None):
     """บัญชีผู้ตรวจที่ระบบสร้างแบบ "อีเมลภายนอก + รหัสผ่าน" (ชื่อผู้ใช้เป็นอีเมล) → เปลี่ยนเป็นบัญชี NU (LDAP)
     ใช้เมื่อแก้อีเมลผู้ตรวจเป็น @nu.ac.th หรือเมื่อผู้ตรวจเข้าสู่ระบบด้วยบัญชี NU สำเร็จ
     ไม่แตะบัญชี admin/ห้องปฏิบัติการ หรือบัญชีที่ตั้งชื่อผู้ใช้เอง — คืน None ถ้าเปลี่ยนแล้ว/ไม่ต้องเปลี่ยน, ข้อความถ้าเปลี่ยนไม่ได้"""
-    if not user or not nu_username or user["role"] not in ("assessor", "lead"):
+    if not user or not nu_username or user["role"] not in ("assessor", "lead", "observer"):
         return None
     if "@" not in (user["username"] or ""):          # ไม่ใช่บัญชีอีเมลที่ระบบสร้าง
         return None
@@ -318,7 +342,7 @@ def sync_nu_accounts(db):
     """ทำให้ทุกหน้าตรงกัน: บัญชีหัวหน้าผู้ตรวจ/ผู้ตรวจที่ชื่อผู้ใช้ยังเป็นอีเมลภายนอก แต่ช่องอีเมลเป็น @nu.ac.th แล้ว
     → เปลี่ยนเป็นบัญชี NU (LDAP) + อีเมลและประเภทในทะเบียนผู้ตรวจตรงกัน · คืนรายชื่อบัญชีที่เปลี่ยน"""
     done = []
-    rows = db.execute("""SELECT * FROM users WHERE role IN ('assessor','lead') AND username LIKE ?
+    rows = db.execute("""SELECT * FROM users WHERE role IN ('assessor','lead','observer') AND username LIKE ?
                          AND lower(email) LIKE ?""", ("%@%", "%@nu.ac.th")).fetchall()
     for u in rows:
         email = (u["email"] or "").strip().lower()

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}สังเกตการณ์ · {{ a.lab_name }}{% endblock %}
+{% block content %}
+{% set s = STATUS_TH.get(a.status, (a.status, 'gray')) %}
+<div class="page-head">
+  <div><div class="crumb">{% if g.user.role == 'observer' %}<a href="{{ url_for('observe_home') }}">การตรวจที่สังเกตการณ์</a>{% else %}<a href="{{ url_for('audit_view', audit_id=a.id) }}">หน้าผู้ตรวจ</a>{% endif %}</div>
+    <h1>{{ a.lab_name }}</h1>
+    <div class="muted">ปี {{ a.year_be }} · ESPReL no. {{ a.espre_no or '—' }}{% if a.faculty %} · {{ a.faculty }}{% endif %}{% if a.location %} · {{ a.location }}{% endif %}</div></div>
+  <span class="badge {{ s[1] }}">{{ s[0] }}</span>
+</div>
+
+<div class="grid g2" style="align-items:start">
+  <div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-h"><h3>ผลการตรวจประเมิน</h3></div>
+      {% for n, S in [(1, r1), (2, r2)] if n == 1 or a.status in ('r2', 'r2_reported') %}
+      <div class="row" style="padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:8px">
+        <b>ครั้งที่ {{ n }}</b>
+        <span class="muted">คะแนนรวม <b>{{ S.total.pct }}%</b> · NC {{ S.total.NC }} · OBS {{ S.total.OBS }} · ความคืบหน้า {{ S.total.progress }}%</span>
+        <span class="spacer"></span>
+        <a class="btn sm" href="{{ url_for('observe_results', audit_id=a.id, rnd=n) }}">👁 ดูผลรายองค์ประกอบ</a>
+      </div>
+      {% endfor %}
+      <p class="hint" style="margin-bottom:0">ผลระหว่างตรวจอาจเปลี่ยนได้จนกว่าหัวหน้าผู้ตรวจจะออกรายงาน</p>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-h"><h3>คณะผู้ตรวจประเมิน</h3></div>
+      {% for u in team %}<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>{{ u.full_name }}</span><span class="spacer"></span>
+        {% if u.id == a.lead_user_id %}<span class="badge amber">หัวหน้าผู้ตรวจ</span>{% endif %}</div>
+      {% else %}<div class="muted">ยังไม่ได้กำหนด</div>{% endfor %}
+      <div class="muted" style="margin-top:8px">ผู้สังเกตการณ์: {% for u in obs %}{{ u.full_name }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>รายงานที่ออกแล้ว</h3></div>
+      {% for r in reports %}
+      <div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)">
+        <span class="badge {{ 'blue' if r.round==1 else 'violet' }}">Report {{ r.round }}</span>
+        <a href="{{ url_for('report_download', report_id=r.id) }}" style="word-break:break-all;flex:1">{{ r.filename }}</a>
+        <small>{{ thai_date(r.created_at, True) }}</small>
+      </div>
+      {% else %}<div class="muted">ยังไม่มีรายงาน</div>{% endfor %}
+    </div>
+  </div>
+
+  <div>
+    {% if g.user.role == 'observer' or g.user.id in obs|map(attribute='id')|list %}
+    <form method="post" class="card" style="margin-bottom:14px">
+      <h3>บันทึกความเห็นถึงคณะผู้ตรวจ</h3>
+      <div class="grid g2" style="gap:8px">
+        <div class="field" style="margin:0"><label>การตรวจครั้งที่</label><select name="round">
+          <option value="1" {{ 'selected' if rnd == 1 }}>ครั้งที่ 1</option>
+          {% if a.status in ('r2', 'r2_reported') %}<option value="2" {{ 'selected' if rnd == 2 }}>ครั้งที่ 2</option>{% endif %}</select></div>
+        <div class="field" style="margin:0"><label>องค์ประกอบ (ไม่บังคับ)</label><select name="element">
+          <option value="">— ภาพรวม —</option>
+          {% for e in range(1,8) %}<option value="{{ e }}">{{ e }}. {{ ELEMENTS[e].short }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field" style="margin-top:8px"><label>ความเห็น / ข้อสังเกต</label>
+        <textarea name="body" required maxlength="4000" rows="5" placeholder="เช่น สิ่งที่พบระหว่างเดินตรวจ ข้อเสนอแนะต่อคณะผู้ตรวจ"></textarea></div>
+      <button class="btn primary">บันทึกความเห็น</button>
+      <p class="hint" style="margin-bottom:0">ความเห็นนี้เห็นเฉพาะคณะผู้ตรวจและผู้สังเกตการณ์ ไม่แสดงต่อห้องปฏิบัติการ และไม่นับเป็นคะแนนหรือข้อค้นพบ</p>
+    </form>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-h"><h3>ความเห็นผู้สังเกตการณ์ ({{ notes|length }})</h3></div>
+      {% for n in notes %}
+      <div style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <div class="row" style="gap:6px;flex-wrap:wrap"><b>{{ n.full_name or '—' }}</b>
+          <span class="badge gray">ครั้งที่ {{ n.round }}</span>{% if n.element %}<span class="badge blue">องค์ {{ n.element }}</span>{% endif %}
+          <span class="spacer"></span><small class="muted">{{ thai_date(n.created_at, True) }} {{ n.created_at[11:16] }}</small>
+          {% if n.user_id == g.user.id %}<form method="post" data-confirm="ลบความเห็นนี้?" style="margin:0"><input type="hidden" name="action" value="delete"><input type="hidden" name="note_id" value="{{ n.id }}"><button class="btn sm">ลบ</button></form>{% endif %}
+        </div>
+        <div style="white-space:pre-wrap;margin-top:4px">{{ n.body }}</div>
+      </div>
+      {% else %}<div class="muted">ยังไม่มีความเห็น</div>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

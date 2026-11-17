@@ -221,6 +221,21 @@ CREATE TABLE IF NOT EXISTS mail_log(
   user_id INTEGER,
   created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS audit_observers(
+  audit_id INTEGER NOT NULL REFERENCES audits(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT,
+  PRIMARY KEY(audit_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS observer_notes(
+  id {PK},
+  audit_id INTEGER NOT NULL REFERENCES audits(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  round INTEGER NOT NULL DEFAULT 1,
+  element INTEGER,
+  body TEXT NOT NULL,
+  created_at TEXT
+);
 CREATE TABLE IF NOT EXISTS settings(
   key TEXT PRIMARY KEY,
   value TEXT
@@ -230,9 +245,11 @@ CREATE INDEX IF NOT EXISTS ix_log_audit ON audit_log(audit_id);
 CREATE INDEX IF NOT EXISTS ix_log_action ON audit_log(action, created_at);
 CREATE INDEX IF NOT EXISTS ix_audits_year ON audits(year_be);
 CREATE INDEX IF NOT EXISTS ix_assessor_user ON assessors(user_id);
+CREATE INDEX IF NOT EXISTS ix_observer_user ON audit_observers(user_id);
+CREATE INDEX IF NOT EXISTS ix_observer_notes ON observer_notes(audit_id);
 """
 
-TABLES = ["users", "labs", "lab_members", "audits", "applications", "app_files", "audit_team", "assignments", "responses",
+TABLES = ["users", "labs", "lab_members", "audits", "applications", "app_files", "audit_team", "audit_observers", "observer_notes", "assignments", "responses",
           "capa", "attachments", "element_status", "reports", "audit_log", "assessors", "assessor_trainings", "mail_log", "settings"]
 
 

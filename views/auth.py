@@ -179,6 +179,8 @@ def register(app):
     @app.route("/home")
     @login_required
     def home():
+        if g.user["role"] == "observer":
+            return redirect(url_for("observe_home"))
         return redirect(url_for("lab_home") if g.user["role"] == "lab" else url_for("dashboard"))
 
     @app.route("/account", methods=["GET", "POST"])

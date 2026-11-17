@@ -12,7 +12,7 @@
 {% set R = resp[rnd] %}
 <div class="cm">
   <div class="cm-top">
-    <a class="btn sm" href="{{ url_for('audit_view', audit_id=a.id, round=rnd) }}" style="background:#1e293b;color:#fff;border-color:#334155">← กลับ</a>
+    <a class="btn sm" href="{{ url_for('observe_audit', audit_id=a.id) if observer else url_for('audit_view', audit_id=a.id, round=rnd) }}" style="background:#1e293b;color:#fff;border-color:#334155">← กลับ</a>
     <span class="t">สรุปผลการตรวจประเมินเพื่อการประชุมปิด · ครั้งที่ {{ rnd }}</span>
     <span>{{ a.lab_name }}</span>
     <span class="spacer"></span>
@@ -133,7 +133,8 @@
 
         <div class="note-area" style="margin-top:14px">
           <h3>สรุปภาพรวม / ประเด็นแจ้งในที่ประชุม</h3>
-          <textarea data-sum="{{ e }}" placeholder="บันทึกสรุปองค์ประกอบนี้ (บันทึกอัตโนมัติ)">{{ st[e].summary if st.get(e) and st[e].summary else '' }}</textarea>
+          {% if observer %}<div style="white-space:pre-wrap">{{ st[e].summary if st.get(e) and st[e].summary else '—' }}</div>{% else %}
+          <textarea data-sum="{{ e }}" placeholder="บันทึกสรุปองค์ประกอบนี้ (บันทึกอัตโนมัติ)">{{ st[e].summary if st.get(e) and st[e].summary else '' }}</textarea>{% endif %}
         </div>
       </div>
     </div>
@@ -174,7 +175,8 @@
         </ol>
         {% endif %}
         <div class="row" style="margin-top:16px">
-          <a class="btn" href="{{ url_for('report_view', audit_id=a.id, rnd=rnd) }}">👁 ดูตัวอย่างรายงาน</a>
+          {% if not observer or (rnd == 1 and a.status != 'r1') or (rnd == 2 and a.status == 'r2_reported') %}
+          <a class="btn" href="{{ url_for('report_view', audit_id=a.id, rnd=rnd) }}">👁 {{ 'ดูรายงาน' if observer else 'ดูตัวอย่างรายงาน' }}</a>{% endif %}
           {% if is_lead() and ((rnd==1 and a.status=='r1') or (rnd==2 and a.status=='r2')) %}
           <form method="post" action="{{ url_for('make_report', audit_id=a.id, rnd=rnd) }}" data-confirm="สร้าง Report {{ rnd }} และปิดการแก้ไขรอบนี้?">
             <button class="btn brand">📄 สร้าง Report {{ rnd }}</button></form>
@@ -228,10 +230,12 @@ if (window.Chart) {
     options: {scales: {r: {min: 0, max: 100, ticks: {stepSize: 25, backdropColor: 'transparent'}, pointLabels: {font: {size: 12, family: 'Plex Thai'}}}},
       plugins: {legend: {position: 'bottom'}}}});
 }
+{% if not observer %}
 const sumUrl = {{ url_for('api_el_summary', audit_id=a.id, rnd=rnd, el=0)|tojson }};
 document.querySelectorAll('textarea[data-sum]').forEach(t => {
   let tm; t.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() =>
     postJSON(sumUrl.replace(/\/element\/0\//, '/element/' + t.dataset.sum + '/'), {summary: t.value}).catch(e => toast(e.message, 'error')), 700); });
 });
+{% endif %}
 </script>
 {% endblock %}

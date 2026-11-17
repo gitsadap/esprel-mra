@@ -12,7 +12,7 @@ from flask import Flask
 
 import config
 import db as dbm
-from views import admin, assess, audits, auth, base, lab, planning
+from views import admin, assess, audits, auth, base, lab, observe, planning
 
 INSTANCE = config.INSTANCE
 
@@ -38,7 +38,7 @@ def create_app():
     )
     dbm.init_db()
     app.teardown_appcontext(dbm.close_db)
-    for mod in (base, auth, audits, assess, lab, planning, admin):
+    for mod in (base, auth, audits, assess, lab, observe, planning, admin):
         mod.register(app)
 
     @app.cli.command("init-db")

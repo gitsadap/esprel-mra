@@ -68,6 +68,14 @@
       </div>
     </div>
     <div>
+      <label>ผู้สังเกตการณ์ <small class="muted">(ดูผล + บันทึกความเห็น ไม่ให้คะแนน)</small></label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin:6px 0 14px;max-height:180px;overflow:auto">
+        {% for u in observer_users %}
+        <label class="row" style="gap:8px;font-weight:400;padding:6px 8px;border:1px solid var(--line);border-radius:10px">
+          <input type="checkbox" name="observers" value="{{u.id}}" {{ 'checked' if u.id in observer_ids }} style="width:20px;height:20px"> {{ u.full_name }} <small>({{ u.username }})</small>
+        </label>
+        {% else %}<div class="muted" style="font-size:.88rem">ยังไม่มีบัญชีผู้สังเกตการณ์ — เพิ่มที่เมนู <a href="{{ url_for('users') }}">ผู้ใช้</a> (บทบาท “ผู้สังเกตการณ์”)</div>{% endfor %}
+      </div>
       {% for e in range(1,8) %}
       <div class="field" style="margin-bottom:8px"><label>องค์ประกอบที่ {{e}} · {{ ELEMENTS[e].short }}</label>
         <select name="assign_{{e}}">

@@ -19,6 +19,8 @@ from core import (
     load_audit,
     login_required,
     mail_credentials,
+    observer_notes,
+    observers,
     r2_progress,
     roles,
     round_editable,
@@ -26,6 +28,7 @@ from core import (
     team,
 )
 from db import get_db, hash_pw, log, now
+from views.observe import observer_users, save_observers
 
 
 # ---------- create / edit audit (ด้วยมือ)
@@ -114,6 +117,7 @@ def _save_audit_form(audit_id=None):
     _attach_lab_user(lab_id, f.get("lab_username"))
     save_team(audit_id, lead, [int(x) for x in f.getlist("team") if x],
                {e: f.get(f"assign_{e}", type=int) for e in range(1, 8)})
+    save_observers(audit_id, f.getlist("observers"))
     log(audit_id, "edit_audit")
     db.commit()
     return audit_id
@@ -126,6 +130,8 @@ def register(app):
     def dashboard():
         if g.user["role"] == "lab":
             return redirect(url_for("lab_home"))
+        if g.user["role"] == "observer":
+            return redirect(url_for("observe_home"))
         db = get_db()
         year = request.args.get("year", type=int)
         years = [r["year_be"] for r in db.execute("SELECT DISTINCT year_be FROM audits ORDER BY year_be DESC")]
@@ -180,7 +186,7 @@ def register(app):
                 return redirect(url_for("audit_view", audit_id=aid))
         labs = get_db().execute("SELECT * FROM labs ORDER BY name").fetchall()
         return render_template("audit_form.html", audit=None, users=staff_users(), team_ids=set(), asg={},
-                               labs=labs, lab_users=[])
+                               labs=labs, lab_users=[], observer_users=observer_users(), observer_ids=set())
 
     @app.route("/audit/<int:audit_id>/edit", methods=["GET", "POST"])
     @roles("lead", "admin")
@@ -194,7 +200,8 @@ def register(app):
                OR u.id=(SELECT owner_user_id FROM labs WHERE id=?)""", (a["lab_id"], a["lab_id"])).fetchall()
         return render_template("audit_form.html", audit=a, users=staff_users(),
                                team_ids={u["id"] for u in team(audit_id)}, asg=assignments(audit_id), labs=[],
-                               lab_users=lab_users)
+                               lab_users=lab_users, observer_users=observer_users(),
+                               observer_ids={u["id"] for u in observers(audit_id)})
 
     @app.route("/audit/<int:audit_id>/delete", methods=["POST"])
     @roles("admin", "lead")
@@ -229,4 +236,5 @@ def register(app):
                                st={1: element_status(audit_id, 1), 2: element_status(audit_id, 2)},
                                asg=assignments(audit_id), team=team(audit_id), reports=reports,
                                editable=round_editable(a, rnd), follow=follow,
-                               r2prog=r2_progress(audit_id, follow), atts=get_attachments(audit_id), logs=logs)
+                               r2prog=r2_progress(audit_id, follow), atts=get_attachments(audit_id), logs=logs,
+                               obs=observers(audit_id), obs_notes=observer_notes(audit_id))

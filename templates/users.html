@@ -25,9 +25,9 @@
       <label class="row" style="gap:6px;align-self:end"><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }} style="width:20px;height:20px"> เปิดใช้งาน</label>
       <div><button class="btn sm primary">บันทึก</button>{% if u.last_login %} <small class="muted">เข้าล่าสุด {{ thai_date(u.last_login, True) }}</small>{% endif %}</div>
     </form>
-    {% if u.role == 'lab' %}
+    {% if u.role == 'lab' or (u.role == 'observer' and '@' in u.username) or (u.role in ('assessor', 'lead') and '@' in u.username and g.user.role == 'admin') %}
     <div class="row" style="gap:8px;margin-top:8px;font-size:.88rem">
-      <span class="muted">ห้องปฏิบัติการ:</span>{% for l in lab_map.get(u.id, []) %}<span class="badge blue">{{ l }}</span>{% else %}<span class="muted">—</span>{% endfor %}
+      {% if u.role == 'lab' %}<span class="muted">ห้องปฏิบัติการ:</span>{% for l in lab_map.get(u.id, []) %}<span class="badge blue">{{ l }}</span>{% else %}<span class="muted">—</span>{% endfor %}{% endif %}
       <span class="spacer"></span>
       <form method="post" data-confirm="สร้างรหัสผ่านใหม่และส่งไปที่ {{ u.email or u.username }}?"><input type="hidden" name="action" value="resetpw"><input type="hidden" name="uid" value="{{ u.id }}">
         <button class="btn sm">✉ ส่งรหัสผ่านใหม่ทางอีเมล</button></form>
@@ -39,14 +39,14 @@
 <form method="post" class="card">
   <h3>เพิ่มผู้ตรวจ / ทีมงาน</h3>
   <input type="hidden" name="action" value="add">
-  <div class="field"><label>ชื่อผู้ใช้ LDAP ของมหาวิทยาลัย *</label><input type="text" name="username" required autocapitalize="off" placeholder="เช่น somchaij"></div>
+  <div class="field"><label>ชื่อผู้ใช้ *</label><input type="text" name="username" required autocapitalize="off" placeholder="บุคลากร มน.: ชื่อผู้ใช้ NU เช่น somchaij · ภายนอก: อีเมล"></div>
   <div class="field"><label>ชื่อ-สกุล (แสดงในรายงาน)</label><input type="text" name="full_name" placeholder="ระบบจะดึงจาก LDAP เมื่อเข้าสู่ระบบครั้งแรก"></div>
   <div class="field"><label>คณะ/หน่วยงาน</label><input type="text" name="faculty"></div>
   <div class="field"><label>อีเมล</label><input type="text" name="email"></div>
-  <div class="field"><label>บทบาท</label><select name="role"><option value="assessor">ผู้ตรวจประเมิน</option><option value="lead">หัวหน้าผู้ตรวจประเมิน</option><option value="lab">ห้องปฏิบัติการ</option>{% if g.user.role=='admin' %}<option value="admin">ผู้ดูแลระบบ</option>{% endif %}</select></div>
+  <div class="field"><label>บทบาท</label><select name="role"><option value="assessor">ผู้ตรวจประเมิน</option><option value="lead">หัวหน้าผู้ตรวจประเมิน</option><option value="observer">ผู้สังเกตการณ์</option><option value="lab">ห้องปฏิบัติการ</option>{% if g.user.role=='admin' %}<option value="admin">ผู้ดูแลระบบ</option>{% endif %}</select></div>
   <div class="field"><label>รหัสผ่านภายในระบบ (ไม่บังคับ)</label><input type="password" name="password" autocomplete="new-password" placeholder="เว้นว่างเพื่อใช้ LDAP"></div>
   <button class="btn primary">+ เพิ่มผู้ใช้</button>
-  <p class="hint">หัวหน้าผู้ตรวจ: อนุมัติใบสมัคร จัดทีม สร้าง Report เริ่มรอบ 2 · ผู้ตรวจ: ให้คะแนน บันทึก NC/OBS ถ่ายรูปหลักฐาน · ห้องปฏิบัติการ: ลงทะเบียนห้อง ดูผล ตอบ CAPA</p>
+  <p class="hint">ผู้ใช้ภายนอก (ชื่อผู้ใช้เป็นอีเมล) ที่ไม่ได้ตั้งรหัสผ่าน: ระบบสร้างรหัสผ่านและส่งทางอีเมลให้ · หัวหน้าผู้ตรวจ: อนุมัติใบสมัคร จัดทีม สร้าง Report เริ่มรอบ 2 · ผู้ตรวจ: ให้คะแนน บันทึก NC/OBS ถ่ายรูปหลักฐาน · ผู้สังเกตการณ์: ดูผลและบันทึกความเห็นเฉพาะการตรวจที่ได้รับเชิญ · ห้องปฏิบัติการ: ลงทะเบียนห้อง ดูผล ตอบ CAPA</p>
 </form>
 </div>
 {% endblock %}

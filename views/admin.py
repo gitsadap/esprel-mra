@@ -89,16 +89,28 @@ def register(app):
                     if role == "admin" and g.user["role"] != "admin":
                         role = "assessor"
                     pw = request.form.get("password", "").strip()
-                    db.execute("""INSERT INTO users(username,password_hash,full_name,email,faculty,role,auth_source,created_at)
-                                  VALUES(?,?,?,?,?,?,?,?)""",
-                               (un, hash_pw(pw) if pw else None, request.form.get("full_name", un).strip() or un,
-                                request.form.get("email", "").strip() or None, request.form.get("faculty", "").strip() or None,
-                                role, "local" if pw else "ldap", now()))
+                    gen = None
+                    if not pw and "@" in un:   # ผู้ใช้ภายนอก (ชื่อผู้ใช้เป็นอีเมล) → สร้างรหัสผ่านและส่งทางอีเมล
+                        gen = pw = gen_password()
+                    uid = db.insert("""INSERT INTO users(username,password_hash,full_name,email,faculty,role,auth_source,
+                                     must_change_pw,created_at) VALUES(?,?,?,?,?,?,?,?,?)""",
+                                    (un, hash_pw(pw) if pw else None, request.form.get("full_name", un).strip() or un,
+                                     request.form.get("email", "").strip() or (un if "@" in un else None),
+                                     request.form.get("faculty", "").strip() or None,
+                                     role, "local" if pw else "ldap", 1 if gen else 0, now()))
                     db.commit()
-                    flash("เพิ่มผู้ใช้เรียบร้อย", "ok")
+                    if gen:
+                        st, err = mail_credentials(db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone(), gen)
+                        if st == "sent":
+                            flash(f"เพิ่มผู้ใช้แล้ว และส่งรหัสผ่านไปที่ {un}", "ok")
+                        else:
+                            flash(f"เพิ่มผู้ใช้แล้ว — {'โหมดทดสอบ' if st == 'dev' else 'ส่งอีเมลไม่สำเร็จ (' + str(err) + ')'}: "
+                                  f"รหัสผ่านชั่วคราว {gen}", "ok" if st == "dev" else "error")
+                    else:
+                        flash("เพิ่มผู้ใช้เรียบร้อย", "ok")
             elif act == "resetpw":
                 u = db.execute("SELECT * FROM users WHERE id=?", (request.form.get("uid", type=int),)).fetchone()
-                if u and (g.user["role"] == "admin" or u["role"] == "lab"):
+                if u and (g.user["role"] == "admin" or u["role"] in ("lab", "observer")):
                     pw = gen_password()
                     db.execute("UPDATE users SET password_hash=?, must_change_pw=1, auth_source='local' WHERE id=?",
                                (hash_pw(pw), u["id"]))
