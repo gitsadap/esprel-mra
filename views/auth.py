@@ -189,6 +189,8 @@ def register(app):
                 flash("รหัสผ่านเดิมไม่ถูกต้อง", "error")
             elif len(request.form.get("new", "")) < 8:
                 flash("รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร", "error")
+            elif "confirm" in request.form and request.form["confirm"] != request.form["new"]:
+                flash("ยืนยันรหัสผ่านใหม่ไม่ตรงกัน", "error")
             else:
                 if request.form["new"] == request.form.get("old"):
                     flash("รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม", "error")

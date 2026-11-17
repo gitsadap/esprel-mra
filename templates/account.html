@@ -8,8 +8,9 @@
 {% if g.user.must_change_pw %}<div class="locked-note" style="max-width:460px">🔑 เข้าสู่ระบบครั้งแรกด้วยรหัสผ่านชั่วคราว — กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน</div>{% endif %}
 <form method="post" class="card" style="max-width:460px">
   <h3>{{ 'ตั้งรหัสผ่านใหม่' if g.user.must_change_pw else 'เปลี่ยนรหัสผ่าน (บัญชีภายในระบบ)' }}</h3>
-  <div class="field"><label>{{ 'รหัสผ่านชั่วคราวที่ได้รับทางอีเมล' if g.user.must_change_pw else 'รหัสผ่านเดิม' }}</label><input type="password" name="old" required></div>
-  <div class="field"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</label><input type="password" name="new" required minlength="8"></div>
+  <div class="field"><label>{{ 'รหัสผ่านที่ใช้เข้าสู่ระบบเมื่อสักครู่ (รหัสชั่วคราว)' if g.user.must_change_pw else 'รหัสผ่านปัจจุบัน' }}</label><input type="password" name="old" autocomplete="current-password" required></div>
+  <div class="field"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</label><input type="password" name="new" autocomplete="new-password" required minlength="8"></div>
+  <div class="field"><label>ยืนยันรหัสผ่านใหม่</label><input type="password" name="confirm" autocomplete="new-password" required minlength="8"></div>
   <button class="btn primary">บันทึก</button>
 </form>
 {% endif %}
