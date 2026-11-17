@@ -52,6 +52,7 @@ location /api/esprel/ {
 LDAP_GATEWAY_URL=https://<โดเมนที่เปิด>/api/esprel/ldap-verify
 LDAP_GATEWAY_KEY=<ค่าเดียวกับ ESPREL_GATEWAY_KEY ใน .env ของ NRED>
 ```
+ทดสอบจริงหลัง deploy (จากเครื่องที่มี .env): `python ldap_gateway/check_gateway.py` — health, ปฏิเสธคำขอไม่มีลายเซ็น, login บัญชี NU จริง
 ตรวจ: `GET https://<โดเมน>/api/esprel/ldap-health` → `{"ok": true, "protocol": "v1"}` · หน้า `/healthz` ของ ESPReL → `"ldap": "gateway"`
 นาฬิกาของเซิร์ฟเวอร์ NRED ต้องตรง (NTP) เพราะลายเซ็นมีอายุ 60 วินาที
 
