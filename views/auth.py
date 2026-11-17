@@ -7,7 +7,7 @@ from flask import flash, g, redirect, render_template, request, session, url_for
 import auth_ldap
 import config
 import mailer
-from core import base_url, check_pw, login_required, make_reset_token, read_reset_token
+from core import base_url, check_pw, login_required, make_reset_token, read_reset_token, to_nu_account
 from db import get_db, hash_pw, log, now
 
 
@@ -64,6 +64,8 @@ def _staff_account(info):
         if not u["active"]:
             return None, "บัญชีนี้ถูกปิดการใช้งาน — โปรดติดต่อผู้ดูแลระบบ"
         # ชื่อที่ admin เพิ่มไว้เป็นแค่ชื่อผู้ใช้ → แทนด้วยชื่อจาก LDAP
+        to_nu_account(db, u, un, f"{un}@nu.ac.th")   # บัญชีอีเมลภายนอกเดิม → บัญชี NU (ผ่าน LDAP แล้ว)
+        u = db.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone()
         name = info.get("full_name") if info.get("full_name") and u["full_name"] == u["username"] else u["full_name"]
         db.execute("""UPDATE users SET auth_source=CASE WHEN password_hash IS NULL THEN 'ldap' ELSE auth_source END,
                       email=COALESCE(email, ?), faculty=COALESCE(faculty, ?), full_name=? WHERE id=?""",

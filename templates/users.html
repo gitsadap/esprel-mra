@@ -14,7 +14,7 @@
     <summary class="row" style="cursor:pointer;list-style:none"><b>{{ u.full_name }}</b><small>{{ u.username }}</small><span class="spacer"></span>
       <small class="muted">{{ u.faculty or '' }}</small>
       <span class="badge {{ 'amber' if u.role=='lead' else ('red' if u.role=='admin' else ('teal' if u.role=='lab' else 'gray')) }}">{{ ROLE_TH[u.role] }}</span>
-      <span class="badge gray">{{ 'LDAP' if u.auth_source == 'ldap' else 'บัญชีภายใน' }}</span>{% if not u.active %}<span class="badge gray">ปิดใช้งาน</span>{% endif %}</summary>
+      <span class="badge gray">{{ 'บัญชี NU (LDAP)' if u.auth_source == 'ldap' else 'อีเมล + รหัสผ่าน' }}</span>{% if not u.active %}<span class="badge gray">ปิดใช้งาน</span>{% endif %}</summary>
     <form method="post" class="grid g2" style="gap:8px;margin-top:8px">
       <input type="hidden" name="action" value="update"><input type="hidden" name="uid" value="{{ u.id }}">
       <div class="field" style="margin:0"><label>ชื่อ-สกุล (แสดงในรายงาน)</label><input type="text" name="full_name" value="{{ u.full_name }}"></div>

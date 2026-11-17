@@ -297,3 +297,18 @@ def save_upload(fs, prefix, allowed):
     storage.save(path, data, ctype)
     return path, name, ctype, len(data)
 
+
+
+def to_nu_account(db, user, nu_username, email=None):
+    """บัญชีผู้ตรวจที่ระบบสร้างแบบ "อีเมลภายนอก + รหัสผ่าน" (ชื่อผู้ใช้เป็นอีเมล) → เปลี่ยนเป็นบัญชี NU (LDAP)
+    ใช้เมื่อแก้อีเมลผู้ตรวจเป็น @nu.ac.th หรือเมื่อผู้ตรวจเข้าสู่ระบบด้วยบัญชี NU สำเร็จ
+    ไม่แตะบัญชี admin/ห้องปฏิบัติการ หรือบัญชีที่ตั้งชื่อผู้ใช้เอง — คืน None ถ้าเปลี่ยนแล้ว/ไม่ต้องเปลี่ยน, ข้อความถ้าเปลี่ยนไม่ได้"""
+    if not user or not nu_username or user["role"] not in ("assessor", "lead"):
+        return None
+    if "@" not in (user["username"] or ""):          # ไม่ใช่บัญชีอีเมลที่ระบบสร้าง
+        return None
+    if db.execute("SELECT 1 x FROM users WHERE lower(username)=? AND id<>?", (nu_username, user["id"])).fetchone():
+        return f"มีบัญชีชื่อ “{nu_username}” อยู่แล้วอีกบัญชี — รวมบัญชีที่เมนู “ผู้ใช้”"
+    db.execute("""UPDATE users SET username=?, email=COALESCE(?, email), auth_source='ldap', password_hash=NULL,
+                  must_change_pw=0 WHERE id=?""", (nu_username, email, user["id"]))
+    return None

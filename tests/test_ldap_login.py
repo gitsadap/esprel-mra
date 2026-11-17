@@ -155,6 +155,16 @@ def test_ldap_first_then_database(app, gateway):
     d.execute("UPDATE users SET active=1 WHERE username='staff1'")
     d.commit()
 
+    # 6b) บัญชีผู้ตรวจแบบอีเมล+รหัสผ่านเดิม (อีเมลถูกแก้เป็น @nu.ac.th) → login NU แล้วเปลี่ยนเป็นบัญชี LDAP
+    d.execute("""INSERT INTO users(username,password_hash,full_name,email,role,auth_source,must_change_pw,created_at)
+                 VALUES('old.mail@gmail.com','x','ผู้ตรวจ เดิม','visa9@nu.ac.th','assessor','local',1,'x')""")
+    d.commit()
+    _, r = _login(app, "visa9", "nu-pass")
+    assert r.status_code == 302
+    u = d.execute("SELECT * FROM users WHERE email='visa9@nu.ac.th'").fetchone()
+    assert u["username"] == "visa9" and u["auth_source"] == "ldap" and u["password_hash"] is None
+    assert not d.execute("SELECT 1 x FROM users WHERE username='old.mail@gmail.com'").fetchone()
+
     # 6) บัญชีภายในระบบ (admin) ยังใช้รหัสผ่านเดิมได้ ไม่ต้องผ่าน LDAP
     n = len(gateway)
     _, r = _login(app, "admin", "admin1234")

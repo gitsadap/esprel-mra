@@ -5,7 +5,7 @@ from flask import abort, flash, g, redirect, render_template, request, url_for
 
 import assessors as assessors_mod
 import db as dbm
-from core import EMAIL_RE, gen_password, mail_credentials, roles
+from core import EMAIL_RE, gen_password, mail_credentials, roles, to_nu_account
 from db import get_db, hash_pw, log, now
 from planner import propose
 from views.audits import save_team, staff_users
@@ -280,8 +280,11 @@ def register(app):
                 flash("มีรายชื่อนี้ (ชื่อหรืออีเมลเดียวกัน) ในทะเบียนแล้ว", "error")
                 return redirect(url_for("assessor_edit", aid=dup["id"]))
             aff = assessors_mod.clean(f.get("affiliation"))
+            nu_un = assessors_mod.ldap_username(email)
+            org = "nu" if nu_un else (f.get("org_type") if f.get("org_type") in ("nu", "external")
+                                      else assessors_mod.org_type(aff, email))
             vals = (name, assessors_mod.name_key(name), aff, assessors_mod.clean(f.get("faculty")) or assessors_mod.faculty_of(aff),
-                    f.get("org_type") if f.get("org_type") in ("nu", "external") else assessors_mod.org_type(aff, email),
+                    org,
                     email, assessors_mod.clean_phone(f.get("phone")), assessors_mod.clean(f.get("note")) or None,
                     1 if f.get("active") else 0, now())
             if a:
@@ -292,6 +295,13 @@ def register(app):
                                (name, vals[3], email, a["user_id"]))
                     if not vals[8]:
                         db.execute("UPDATE users SET active=0 WHERE id=? AND role='assessor'", (a["user_id"],))
+                    if nu_un:   # อีเมลเป็น @nu.ac.th แล้ว → บัญชีอีเมล+รหัสผ่านเดิม เปลี่ยนเป็นบัญชี NU (LDAP)
+                        u = db.execute("SELECT * FROM users WHERE id=?", (a["user_id"],)).fetchone()
+                        err = to_nu_account(db, u, nu_un, email)
+                        if err:
+                            flash(err, "error")
+                        elif u and u["auth_source"] != "ldap" and "@" in u["username"]:
+                            flash(f"เปลี่ยนเป็นบัญชี NU (LDAP) แล้ว — เข้าสู่ระบบด้วยชื่อผู้ใช้ “{nu_un}” และรหัสผ่าน NU", "ok")
             else:
                 aid = db.insert("""INSERT INTO assessors(full_name,name_key,affiliation,faculty,org_type,email,phone,note,active,
                                    updated_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", vals + (now(),))

@@ -85,6 +85,20 @@ def test_import_page_accounts_and_planner(app):
     pw = re.search(r"รหัสผ่านชั่วคราว : (\S+)", msg["body"]).group(1)
     c = app.test_client()
     assert c.post("/login", data={"username": "ext.a@dmsc.mail.go.th", "password": pw}).status_code == 302
+    # แก้อีเมลผู้ตรวจที่มีบัญชีอีเมล+รหัสผ่านแล้ว เป็น @nu.ac.th → กลายเป็นบัญชี NU (LDAP) + ประเภท มน.
+    aid_ext = ids["ext.a@dmsc.mail.go.th"]
+    r = lead.post(f"/assessors/{aid_ext}", data={"action": "save", "full_name": "นางสาวภายนอก ทดสอบ",
+                                                 "affiliation": "คณะวิทยาศาสตร์ มหาวิทยาลัยนเรศวร", "org_type": "external",
+                                                 "email": "Exta@nu.ac.th", "active": "1"}, follow_redirects=True)
+    page = r.get_data(as_text=True)
+    assert "บัญชี NU (LDAP)" in page and "exta" in page
+    d = DB()
+    u2 = d.execute("SELECT * FROM users WHERE id=?", (u2["id"],)).fetchone()
+    a2 = d.execute("SELECT org_type FROM assessors WHERE id=?", (aid_ext,)).fetchone()
+    d.close()
+    assert u2["username"] == "exta" and u2["auth_source"] == "ldap" and u2["password_hash"] is None
+    assert u2["email"] == "exta@nu.ac.th" and u2["must_change_pw"] == 0 and a2["org_type"] == "nu"
+    assert c.post("/login", data={"username": "ext.a@dmsc.mail.go.th", "password": pw}).status_code == 200
     # ซ้ำ → ไม่สร้างบัญชีใหม่
     lead.post("/assessors", data={"action": "accounts", "aid": [str(ids["test1@nu.ac.th"])]})
     d = DB()
