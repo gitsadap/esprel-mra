@@ -99,6 +99,24 @@ def test_import_page_accounts_and_planner(app):
     assert u2["username"] == "exta" and u2["auth_source"] == "ldap" and u2["password_hash"] is None
     assert u2["email"] == "exta@nu.ac.th" and u2["must_change_pw"] == 0 and a2["org_type"] == "nu"
     assert c.post("/login", data={"username": "ext.a@dmsc.mail.go.th", "password": pw}).status_code == 200
+    # หน้า "ผู้ใช้": แก้อีเมลบัญชีอีเมล+รหัสผ่านเป็น @nu.ac.th → บัญชี NU + ทะเบียนผู้ตรวจตรงกัน
+    aid_b = ids["ext.b@gmail.com"]
+    lead.post("/assessors", data={"action": "accounts", "aid": [str(aid_b)]})
+    d = DB()
+    ub = d.execute("SELECT * FROM users WHERE username='ext.b@gmail.com'").fetchone()
+    d.close()
+    assert ub["auth_source"] == "local"
+    admin = login(app.test_client(), "admin", "admin1234")
+    r = admin.post("/users", data={"action": "update", "uid": str(ub["id"]), "full_name": ub["full_name"], "role": "lead",
+                                   "faculty": "", "email": "extb@nu.ac.th", "password": "", "active": "1"},
+                   follow_redirects=True)
+    assert "บัญชี NU (LDAP)" in r.get_data(as_text=True)
+    d = DB()
+    ub = d.execute("SELECT * FROM users WHERE id=?", (ub["id"],)).fetchone()
+    ab = d.execute("SELECT email, org_type FROM assessors WHERE id=?", (aid_b,)).fetchone()
+    d.close()
+    assert ub["username"] == "extb" and ub["auth_source"] == "ldap" and ub["password_hash"] is None and ub["role"] == "lead"
+    assert ab["email"] == "extb@nu.ac.th" and ab["org_type"] == "nu"
     # ซ้ำ → ไม่สร้างบัญชีใหม่
     lead.post("/assessors", data={"action": "accounts", "aid": [str(ids["test1@nu.ac.th"])]})
     d = DB()
@@ -119,7 +137,7 @@ def test_import_page_accounts_and_planner(app):
     assert "ทะเบียนผู้ตรวจประเมิน" in plan
 
     # ลบออกจากทะเบียน
-    lead.post(f"/assessors/{ids['ext.b@gmail.com']}", data={"action": "delete"})
+    lead.post(f"/assessors/{aid_b}", data={"action": "delete"})
     d = DB()
-    assert not d.execute("SELECT 1 x FROM assessors WHERE email='ext.b@gmail.com'").fetchone()
+    assert not d.execute("SELECT 1 x FROM assessors WHERE id=?", (aid_b,)).fetchone()
     d.close()

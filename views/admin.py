@@ -7,10 +7,23 @@ import traceback
 from flask import Response, flash, g, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 
+import assessors as assessors_mod
 import auth_ldap
 import db as dbm
 import storage
-from core import BASE, IMG_TYPES, INSTANCE, STAFF, gen_password, is_staff, load_audit, mail_credentials, roles, save_upload
+from core import (
+    BASE,
+    IMG_TYPES,
+    INSTANCE,
+    STAFF,
+    gen_password,
+    is_staff,
+    load_audit,
+    mail_credentials,
+    roles,
+    save_upload,
+    to_nu_account,
+)
 from db import get_db, hash_pw, now
 
 
@@ -102,9 +115,21 @@ def register(app):
                     db.execute("UPDATE users SET full_name=?, faculty=?, email=?, role=?, active=? WHERE id=?",
                                (request.form.get("full_name", u["full_name"]), request.form.get("faculty") or None,
                                 request.form.get("email") or None, role, 1 if request.form.get("active") else 0, uid))
+                    email = (request.form.get("email") or "").strip().lower()
+                    nu_un = assessors_mod.ldap_username(email)
                     if request.form.get("password"):
                         db.execute("UPDATE users SET password_hash=?, auth_source='local' WHERE id=?",
                                    (hash_pw(request.form["password"]), uid))
+                    elif nu_un and role in ("assessor", "lead"):
+                        # อีเมลเป็น @nu.ac.th → บัญชีอีเมล+รหัสผ่านเดิม เปลี่ยนเป็นบัญชี NU (LDAP) + ปรับทะเบียนผู้ตรวจให้ตรงกัน
+                        u2 = db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+                        err = to_nu_account(db, u2, nu_un, email)
+                        if err:
+                            flash(err, "error")
+                        elif "@" in u2["username"]:
+                            flash(f"เปลี่ยนเป็นบัญชี NU (LDAP) แล้ว — เข้าสู่ระบบด้วยชื่อผู้ใช้ “{nu_un}” และรหัสผ่าน NU", "ok")
+                        db.execute("UPDATE assessors SET email=?, org_type='nu', updated_at=? WHERE user_id=?",
+                                   (email, now(), uid))
                     db.commit()
                     flash("บันทึกข้อมูลผู้ใช้แล้ว", "ok")
             return redirect(url_for("users", role=request.args.get("role")))

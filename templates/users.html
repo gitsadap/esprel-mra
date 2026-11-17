@@ -21,7 +21,7 @@
       <div class="field" style="margin:0"><label>บทบาท</label><select name="role">{% for k, v in ROLE_TH.items() %}<option value="{{k}}" {{ 'selected' if u.role==k }}>{{ v }}</option>{% endfor %}</select></div>
       <div class="field" style="margin:0"><label>คณะ/หน่วยงาน (ใช้กันผลประโยชน์ทับซ้อน)</label><input type="text" name="faculty" value="{{ u.faculty or '' }}"></div>
       <div class="field" style="margin:0"><label>อีเมล</label><input type="text" name="email" value="{{ u.email or '' }}"></div>
-      <div class="field" style="margin:0"><label>รหัสผ่านภายในระบบ (เว้นว่าง = ใช้ LDAP)</label><input type="password" name="password" autocomplete="new-password"></div>
+      <div class="field" style="margin:0"><label>ตั้งรหัสผ่านในระบบ (ไม่บังคับ)</label><input type="password" name="password" autocomplete="new-password" placeholder="เว้นว่าง = ไม่เปลี่ยน · อีเมล @nu.ac.th = ใช้บัญชี NU"></div>
       <label class="row" style="gap:6px;align-self:end"><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }} style="width:20px;height:20px"> เปิดใช้งาน</label>
       <div><button class="btn sm primary">บันทึก</button>{% if u.last_login %} <small class="muted">เข้าล่าสุด {{ thai_date(u.last_login, True) }}</small>{% endif %}</div>
     </form>
