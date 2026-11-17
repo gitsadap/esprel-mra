@@ -6,8 +6,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # ubuntu-latest (26.04) ไม่มี Python 3.9 แล้ว → ตรึงเป็น 24.04
+    runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false          # รุ่นหนึ่งพัง อีกรุ่นยังรันต่อ จะได้เห็นผลครบ
       matrix:
         python: ["3.9", "3.12"]   # 3.9 = Python บน Mac ของผู้ใช้, 3.12 = Vercel
     services:
@@ -19,8 +21,8 @@ jobs:
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
           cache: pip
