@@ -179,7 +179,7 @@ def test_ldap_unknown_user_rejected(app, monkeypatch):
     monkeypatch.setattr(config, "LDAP_NEW_USER_ROLE", "")
     c = app.test_client()
     r = c.post("/login", data={"username": "stranger", "password": "x"})
-    assert r.status_code == 200 and "ยังไม่ได้รับสิทธิ์" in r.get_data(as_text=True)
+    assert r.status_code == 200 and "ยังไม่มีชื่อท่านในระบบ" in r.get_data(as_text=True)
     from db import DB
     d = DB()
     assert not d.execute("SELECT 1 x FROM users WHERE username='stranger'").fetchone()

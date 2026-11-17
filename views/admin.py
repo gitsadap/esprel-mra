@@ -162,7 +162,7 @@ def register(app):
     def healthz():
         get_db().execute("SELECT 1 x").fetchone()
         return jsonify(ok=True, db="postgres" if dbm.IS_PG else "sqlite", storage="supabase" if storage.USE_SUPABASE else "local",
-                       ldap=auth_ldap.enabled())
+                       ldap=auth_ldap.mode() or False)
 
     @app.errorhandler(500)
     def server_error(e):

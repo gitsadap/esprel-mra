@@ -5,6 +5,7 @@ import secrets
 from flask import flash, g, jsonify, redirect, request, session, url_for
 
 import auth_ldap
+import config
 from core import APP_STATUS_TH, ROLE_TH, STATUS_ORDER, STATUS_TH, file_url, is_api, is_lead, is_staff
 from db import get_db
 from scoring import CHECKLIST, ELEMENTS, FOLLOWUP, FTYPES, ITEMS, SECTION_TITLES, level_of, thai_date
@@ -40,7 +41,7 @@ def register(app):
                     STATUS_TH=STATUS_TH, STATUS_ORDER=STATUS_ORDER, APP_STATUS_TH=APP_STATUS_TH, ROLE_TH=ROLE_TH,
                     thai_date=thai_date, level_of=level_of, is_lead=is_lead, is_staff=is_staff,
                     ITEMS=ITEMS, SECTION_TITLES=SECTION_TITLES, csrf_token=session.get("csrf", ""),
-                    file_url=file_url, ldap_enabled=auth_ldap.enabled())
+                    file_url=file_url, ldap_enabled=auth_ldap.enabled(), demo_mode=config.SEED_DEMO_USERS)
 
     @app.template_filter("short")
     def short_name(name):

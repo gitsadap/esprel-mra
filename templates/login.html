@@ -19,7 +19,7 @@
     </div>
     <p class="hint" style="margin-bottom:0">
       ห้องปฏิบัติการ: ใช้อีเมลผู้ประสานงานและรหัสผ่านที่ได้รับทางอีเมลหลังส่งใบสมัคร
-      {% if ldap_enabled %}· ผู้ตรวจประเมิน/ทีมงาน: ใช้บัญชีเดียวกับระบบของมหาวิทยาลัย{% else %}<br>โหมดทดสอบ: admin / admin1234 · lead / lead1234 · auditor1 / audit1234 · ห้องปฏิบัติการ: labuser หรือ sc2201@example.org / lab1234{% endif %}
+      {% if ldap_enabled %}· ผู้ตรวจประเมิน/ทีมงาน: ใช้บัญชีเดียวกับระบบของมหาวิทยาลัย (บัญชี NU){% endif %}{% if demo_mode %}<br>โหมดทดสอบ: admin / admin1234 · lead / lead1234 · auditor1 / audit1234 · ห้องปฏิบัติการ: labuser หรือ sc2201@example.org / lab1234{% endif %}
     </p>
   </form>
   <a class="card apply-cta" href="{{ url_for('apply_public') }}">

@@ -203,6 +203,7 @@ CREATE TABLE IF NOT EXISTS settings(
 );
 CREATE INDEX IF NOT EXISTS ix_attach_item ON attachments(audit_id, item_id);
 CREATE INDEX IF NOT EXISTS ix_log_audit ON audit_log(audit_id);
+CREATE INDEX IF NOT EXISTS ix_log_action ON audit_log(action, created_at);
 CREATE INDEX IF NOT EXISTS ix_audits_year ON audits(year_be);
 CREATE INDEX IF NOT EXISTS ix_assessor_user ON assessors(user_id);
 
